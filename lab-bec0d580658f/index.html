@@ -90,6 +90,17 @@
     var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=7'; document.body.appendChild(sc);
     return;
   }
+  // Any personal link with a volunteer code (?code=… on the paperwork and My shifts pages) remembers that person on
+  // this device, so the portal opens signed in next time. Same storage the portal uses (test site keeps its own).
+  try {
+    var c1 = String(new URLSearchParams(q).get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (c1.length >= 6) {
+      var pfx = (window.HUB_ENV && window.HUB_ENV !== 'LIVE') ? 'sbx_' : '', K = pfx + 'hubCodes';
+      var list = JSON.parse(localStorage.getItem(K) || '[]').filter(function (x) { return (x.id || x.code) !== c1; });
+      list.unshift({ id: c1, code: c1, first: '', personId: '' });
+      localStorage.setItem(K, JSON.stringify(list.slice(0, 8))); localStorage.setItem(pfx + 'hubActive', JSON.stringify(c1));
+    }
+  } catch (e) {}
   var url = window.HUB_API + q + (q.indexOf('?') === 0 ? '&' : '?') + 'raw=1';
   fetch(url).then(function (r) {
     if (!r.ok) throw new Error('status ' + r.status);
