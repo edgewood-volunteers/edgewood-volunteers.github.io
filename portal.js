@@ -78,6 +78,7 @@
       renderHome(d, false);
     }).catch(function (e) {
       if (/couldn't find that/i.test(e.message)) { dropEntry(ent.id); return signIn('That saved sign-in no longer works. Enter your current code or email.'); }
+      if (/signs in with Google/i.test(e.message) && ent.limited) { dropEntry(ent.id); return signIn(e.message); }   // email sign-in no longer allowed for this email
       h('<div class="card"><p class="err">' + esc(e.message) + '</p><button class="btn" id="retry">Try again</button></div>'); on('#retry', 'click', home);
     });
   }
