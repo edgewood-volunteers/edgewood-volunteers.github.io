@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<!-- Edgewood Volunteer Hub. Copyright (c) 2026 NE Prints & Design, LLC. All rights reserved. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edgewood Volunteer Hub</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; color: #1f2937; background: #f8fafc; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 40px 20px; text-align: center; }
+  h1 { font-size: 22px; color: #0b2545; margin: 0 0 8px; }
+  p { color: #4b5563; line-height: 1.5; }
+  .spin { width: 28px; height: 28px; margin: 24px auto; border: 3px solid #cbd5e1; border-top-color: #0b2545; border-radius: 50%; animation: s 0.9s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  a.btn { display: inline-block; margin-top: 12px; padding: 10px 16px; background: #0b2545; color: #fff; border-radius: 8px; text-decoration: none; }
+  .env { position: fixed; top: 0; left: 0; right: 0; background: #b45309; color: #fff; font-size: 12px; padding: 3px; text-align: center; z-index: 99999; }
+  #hub.portal { max-width: 480px; text-align: left; padding: 0 0 24px; }
+  header { background: #0b2545; color: #fff; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  header.adminhdr { background: #7c2d12; }
+  header .title { font-weight: 600; font-size: 16px; } header .sub { font-size: 12px; opacity: .85; }
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { background: transparent; color: #fff; border: 1px solid #ffffff99; border-radius: 99px; padding: 4px 11px; font-size: 13px; cursor: pointer; }
+  .pill.on { background: #fff; color: #0b2545; } .pill.admin { border-color: #fbbf24; color: #fbbf24; } .pill.admin.on { background: #fbbf24; color: #0b2545; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 14px; margin: 10px 12px; }
+  .card.inner { margin: 10px 0 0; background: #f8fafc; }
+  .card.warn { border-color: #fca5a5; background: #fef2f2; }
+  .card.gameday { border-color: #fcd34d; background: #fffbeb; }
+  .card.admincard { border-color: #fdba74; background: #fff7ed; }
+  .card.center, .center { text-align: center; }
+  .card h2 { font-size: 18px; margin: 0 0 6px; color: #0b2545; }
+  .tag { font-size: 12px; color: #92400e; } .big { font-weight: 600; font-size: 15px; margin: 2px 0; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .small { font-size: 13px; } .muted { color: #6b7280; } .err { color: #b91c1c; } .ok { color: #15803d; }
+  .list { list-style: none; padding: 0; margin: 6px 0; } .list li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 14px; }
+  .btn { display: inline-block; box-sizing: border-box; width: 100%; margin-top: 8px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0b2545; font-size: 14px; text-align: center; text-decoration: none; cursor: pointer; }
+  .btn.primary { background: #0b2545; color: #fff; border-color: #0b2545; } .btn.danger { background: #b91c1c; color: #fff; border-color: #b91c1c; width: auto; }
+  .btn.sm { width: auto; margin: 0; padding: 4px 10px; } .btn:disabled { opacity: .5; cursor: default; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 12px; } .grid2 .btn { margin: 0; }
+  .stat { background: #f1f5f9; border-radius: 8px; padding: 10px; } .num { font-size: 22px; font-weight: 600; color: #0b2545; }
+  input, select, textarea { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; margin-top: 6px; }
+  textarea { min-height: 70px; }
+  .lbl { display: block; margin-top: 12px; font-size: 14px; font-weight: 600; }
+  .chk { display: block; padding: 6px 0; } .chk.dim { opacity: .7; } .chk input { width: auto; margin-right: 6px; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; } .wd { font-size: 11px; color: #6b7280; text-align: center; }
+  .cell { min-height: 54px; border: 1px solid #eef2f7; border-radius: 6px; padding: 2px; } .cell.empty { border: 0; } .cell.today { border-color: #0b2545; }
+  .dn { font-size: 11px; color: #6b7280; }
+  .chip { display: block; width: 100%; margin-top: 2px; padding: 2px 3px; border: 0; border-radius: 4px; background: #dbeafe; color: #1e3a8a; font-size: 10px; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .chip.past { background: #e5e7eb; color: #4b5563; }
+  .hrow { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #f1f5f9; } .right { text-align: right; }
+  .hit { display: block; width: 100%; text-align: left; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; margin-top: 6px; cursor: pointer; }
+  #hub.portal a.btn { background: #fff; color: #0b2545; border: 1px solid #cbd5e1; padding: 10px 12px; margin-top: 8px; }
+  #hub.portal a.btn.primary { background: #0b2545; color: #fff; border-color: #0b2545; }
+  #hub.portal .grid2 a.btn { margin-top: 0; }
+  .cols { display: block; }
+  @media (min-width: 900px) {
+    #hub.portal { max-width: 980px; }
+    #hub.portal .cols { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+    #hub.portal .cols > .wide, #hub.portal .cols > .grid2 { grid-column: auto; }
+    #hub.portal .cols > .wide, #hub.portal .calcard { grid-column: 1 / -1; }
+    #hub.portal .cell { min-height: 84px; } #hub.portal .chip { font-size: 12px; padding: 3px 5px; }
+    header { padding: 16px 24px; }
+  }
+  footer { text-align: center; font-size: 12px; color: #6b7280; margin: 18px 12px; }
+</style>
+<script src="config.js"></script>
+</head>
+<body>
+<div class="wrap" id="hub">
+  <h1>Edgewood Volunteer Hub</h1>
+  <div class="spin" id="spin"></div>
+  <p id="msg">Loading…</p>
+</div>
+<script>
+/* Loader: every Hub page lives at this address with the same ?view=…&… parameters the old links used.
+ * The page itself is built by the Hub (Apps Script) and drawn here, so it runs on this address. */
+(function () {
+  var q = location.search;
+  var msg = document.getElementById('msg'), spin = document.getElementById('spin');
+  function landing() {
+    spin.style.display = 'none';
+    msg.innerHTML = 'Volunteer pages for Edgewood concession stands.<br>Use the personal link from your Hub email, or see the open spots below.';
+    var a = document.createElement('a'); a.className = 'btn'; a.href = '?view=coverage'; a.textContent = 'See open spots';
+    document.getElementById('hub').appendChild(a);
+  }
+  var v0 = new URLSearchParams(q).get('view');
+  if (!q || q === '?' || v0 === 'home' || v0 === 'leave') {   // the portal and the leave page are built here, not by the Hub
+    var hub = document.getElementById('hub'); hub.className = 'wrap portal'; hub.innerHTML = '';
+    if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') { hub.style.paddingTop = '22px'; var bar = document.createElement('div'); bar.className = 'env'; bar.textContent = window.HUB_ENV + ' – test copy, not live data'; document.body.appendChild(bar); }
+    var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=6'; document.body.appendChild(sc);
+    return;
+  }
+  var url = window.HUB_API + q + (q.indexOf('?') === 0 ? '&' : '?') + 'raw=1';
+  fetch(url).then(function (r) {
+    if (!r.ok) throw new Error('status ' + r.status);
+    return r.text();
+  }).then(function (html) {
+    if (!html || html.length < 50) throw new Error('empty page');
+    if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') {
+      html = html.replace(/<body([^>]*)>/i, '<body$1><div style="position:fixed;top:0;left:0;right:0;background:#b45309;color:#fff;font:12px system-ui;padding:3px;text-align:center;z-index:99999">' + window.HUB_ENV + ' – test copy, not live data</div>');
+    }
+    document.open(); document.write(html); document.close();
+  }).catch(function (e) {
+    spin.style.display = 'none';
+    msg.textContent = 'This page could not load right now (' + e.message + '). Please try again in a minute.';
+  });
+})();
+</script>
+</body>
+</html>

@@ -7,10 +7,11 @@
   var API = window.HUB_API, ENV = window.HUB_ENV || 'LIVE';
   var LIAISON = 'edgewood.hs.volunteers+liaison@gmail.com', TECH = 'edgewood.hs.volunteers+help@gmail.com';
   var root = document.getElementById('hub');
-  var KEY = 'hubCodes', ACTIVE = 'hubActive';
+  var PFX = ENV === 'LIVE' ? '' : 'sbx_';   // live and test sites share this address, so they keep separate saved codes and admin sign-ins
+  var KEY = PFX + 'hubCodes', ACTIVE = PFX + 'hubActive';
   var state = { data: null, admin: false, adminData: null, view: 'home', cal: null, page: 'Portal' };
   var SID = (function () { try { var x = sessionStorage.getItem('hubSid'); if (!x) { x = Math.random().toString(36).slice(2, 10); sessionStorage.setItem('hubSid', x); } return x; } catch (e) { return ''; } })();
-  var ADMIN = 'hubAdmin';
+  var ADMIN = PFX + 'hubAdmin';
 
   // ---------- helpers
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }

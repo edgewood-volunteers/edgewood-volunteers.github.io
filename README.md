@@ -12,3 +12,10 @@ The Edgewood Volunteer Hub (the code in this repository, the Google Apps Script 
 - Hosting this repository under the `edgewood-volunteers` account is for continuity and does not transfer ownership of the code.
 - No license is granted. The code is publicly visible, but copying, modifying, redistributing or reusing it requires written permission from NE Prints & Design, LLC.
 - Volunteer data (people, shifts, hours, documents) belongs to the Edgewood programs it was collected for, not to the code's owner.
+
+## Sandbox site
+
+`/lab-bec0d580658f/` is the test site. It loads the same `portal.js` but has its own `config.js` pointing at the
+SANDBOX copy of the Hub, shows an orange SANDBOX bar, and asks search engines not to index it. Saved volunteer codes and
+admin sign-ins are kept separately from the live site. If `index.html` changes, copy it into that folder too
+(the only difference is the `robots` meta line).
