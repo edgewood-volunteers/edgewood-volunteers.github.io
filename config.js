@@ -6,6 +6,6 @@ window.HUB_API = 'https://script.google.com/macros/s/AKfycbxNNoPkMYMbM_VguDkvgDD
 window.HUB_ENV = 'SANDBOX';
 
 /* Google sign-in for admins (Google Cloud > Clients > Web application). Public, not a secret. */
-window.HUB_GOOGLE_CLIENT_ID = '';
+window.HUB_GOOGLE_CLIENT_ID = '235845290660-vu9gh7pjfgpf4brdoq5rj6n90rj016ku.apps.googleusercontent.com';
 /* Help page shown in the footer before anyone signs in (after sign-in the Hub's Settings › Help page link is used). */
 window.HUB_HELP = '';
