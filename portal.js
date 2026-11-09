@@ -5,10 +5,12 @@
 (function () {
   'use strict';
   var API = window.HUB_API, ENV = window.HUB_ENV || 'LIVE';
-  var LIAISON = 'edgewood.hs.volunteers+liaison@gmail.com';
+  var LIAISON = 'edgewood.hs.volunteers+liaison@gmail.com', TECH = 'edgewood.hs.volunteers+help@gmail.com';
   var root = document.getElementById('hub');
   var KEY = 'hubCodes', ACTIVE = 'hubActive';
-  var state = { data: null, admin: false, adminData: null, view: 'home', cal: null };
+  var state = { data: null, admin: false, adminData: null, view: 'home', cal: null, page: 'Portal' };
+  var SID = (function () { try { var x = sessionStorage.getItem('hubSid'); if (!x) { x = Math.random().toString(36).slice(2, 10); sessionStorage.setItem('hubSid', x); } return x; } catch (e) { return ''; } })();
+  var ADMIN = 'hubAdmin';
 
   // ---------- helpers
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -36,12 +38,13 @@
   }
   function call(action, body) {
     body = body || {}; body.action = action;
+    body._c = { page: state.page, ua: navigator.userAgent, tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || ''), scr: screen.width + 'x' + screen.height, lang: navigator.language || '', sid: SID };
     return fetch(API, { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok) throw new Error(j.error || 'Something went wrong.');
       return j.result;
     });
   }
-  function h(html) { root.innerHTML = html; window.scrollTo(0, 0); }
+  function h(html) { root.innerHTML = html; window.scrollTo(0, 0); if (typeof wireFooter === 'function') wireFooter(); }
   function spinner(msg) { h('<div class="card center"><div class="spin"></div><p class="muted">' + esc(msg || 'Loading…') + '</p></div>'); }
   function on(sel, ev, fn) { Array.prototype.forEach.call(root.querySelectorAll(sel), function (el) { el.addEventListener(ev, fn); }); }
   function telLink(p, kind) { var d = String(p || '').replace(/[^\d+]/g, ''); return d ? (kind === 'sms' ? 'sms:' : 'tel:') + d : ''; }
@@ -123,24 +126,30 @@
   function wireHeader() {
     on('.pill[data-code]', 'click', function () { state.admin = false; store(ACTIVE, this.getAttribute('data-code')); home(); });
     on('#addp', 'click', function () { state.admin = false; signIn(); });
-    on('#adm', 'click', function () { state.admin = !state.admin; state.admin ? adminSearch() : renderHome(state.data, false); });
+    on('#adm', 'click', function () { if (state.admin) { state.admin = false; renderHome(state.data, false); } else adminStart(); });
   }
   function footer() {
-    return '<footer>Questions about shifts, stands or paperwork: <a href="mailto:' + LIAISON + '">email the IU liaison</a>.<br>© 2026 NE Prints &amp; Design, LLC' +
-      (ENV !== 'LIVE' ? ' · ' + esc(ENV) : '') + '</footer>';
+    var help = (state.data && state.data.help) || window.HUB_HELP || '';
+    return '<footer>' + (help ? '<a href="' + esc(help) + '" target="_blank" rel="noopener">Help and how-to guides</a><br>' : '') +
+      'Questions about shifts, stands or paperwork: <a href="mailto:' + LIAISON + '">email the IU liaison</a>.<br>' +
+      'Website or technical problems: <a href="mailto:' + TECH + '">Nick Ely, tech support</a>.<br>' +
+      '<a href="#" id="admLogin">Admin sign-in</a> · © 2026 NE Prints &amp; Design, LLC' + (ENV !== 'LIVE' ? ' · ' + esc(ENV) : '') + '</footer>';
   }
+  function wireFooter() { on('#admLogin', 'click', function (e) { e.preventDefault(); adminStart(); }); }
 
   function renderHome(d, asAdmin) {
     var me = d.me, sh = d.shifts || {}, up = sh.upcoming || [], next = up[0];
-    var out = asAdmin ? adminBar(d) : header(me.first, d.isAdmin);
+    state.page = asAdmin ? 'Portal admin view' : d.limited ? 'Portal (email)' : 'Portal (code)';
+    var out = (asAdmin ? adminBar(d) : header(me.first, d.isAdmin)) + '<div class="cols">';
     if (asAdmin) out += adminCard(d);
-    if (d.limited && !asAdmin) out += '<div class="card"><b>Signed in with your email.</b><div class="small">You can see your shifts, hours and paperwork. For your personal links (paperwork page, naming your spots, logging stand hours), enter the code from your Hub email.</div><button class="btn" id="usecode">Enter my code</button></div>';
-    if (!me.active) out += '<div class="card warn">' + esc(me.first) + ' is not on the volunteer list right now. Signing up for a shift adds you back automatically.</div>';
+    if (d.limited && !asAdmin) out += '<div class="card wide"><b>Signed in with your email.</b><div class="small">You can see your shifts, hours and paperwork. For your personal links (paperwork page, naming your spots, logging stand hours), enter the code from your Hub email.</div><button class="btn" id="usecode">Enter my code</button></div>';
+    if (!me.active) out += '<div class="card warn wide">' + esc(me.first) + ' is not on the volunteer list right now. Signing up for a shift adds you back automatically.</div>';
 
     // Game day
     (d.standToday || []).forEach(function (s) {
-      out += '<div class="card gameday"><div class="tag">Today · you\'re the stand lead</div><div class="big">' + esc(s.stand) + (s.event ? ' · ' + esc(s.event) : '') + '</div>' +
-        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Log your stand\'s hours</a>' : '<p class="small muted">' + (asAdmin ? 'Admin view hides the stand link.' : 'Your stand link is in your Hub email, or enter your code above to open it here.') + '</p>') + '</div>';
+      out += '<div class="card gameday wide"><div class="tag">Today · you\'re the stand lead</div><div class="big">' + esc(s.stand) + (s.event ? ' · ' + esc(s.event) : '') + '</div>' +
+        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Log your stand\'s hours</a>' : '<p class="small muted">' + (asAdmin ? 'Admin view hides the stand link.' : 'Your stand link is in your Hub email, or enter your code above to open it here.') + '</p>') +
+        (d.techPhone ? '<a class="btn" href="' + telLink(d.techPhone, 'sms') + '">Page not working? Text tech support (Nick)</a>' : '') + '</div>';
     });
 
     // Paperwork
@@ -190,6 +199,7 @@
       (!asAdmin && d.links.upload ? '<a class="btn" href="' + esc(toSite(d.links.upload)) + '">Update my info</a>' : '') +
       '<a class="btn" href="mailto:' + LIAISON + '">Contact the liaison</a></div>';
 
+    out += '</div>';
     if (!asAdmin) out += '<div class="center small"><a href="#" id="leave">Leave the volunteer list</a> · <a href="#" id="signout">Forget me on this device</a>' +
       (codes().length > 1 ? ' · <a href="#" id="forgetall">Forget everyone on this device</a>' : '') + '</div>';
     out += footer();
@@ -231,7 +241,7 @@
     }
     var name = m.toLocaleString(undefined, { month: 'long', year: 'numeric' });
     h((asAdmin ? adminBar(state.adminData) : header(d.me.first, d.isAdmin)) +
-      '<div class="card"><div class="row"><button class="btn sm" id="back">← Back</button><b>My shifts</b><span></span></div>' +
+      '<div class="card calcard"><div class="row"><button class="btn sm" id="back">← Back</button><b>My shifts</b><span></span></div>' +
       '<div class="row"><button class="btn sm" id="prev">‹</button><b>' + esc(name) + '</b><button class="btn sm" id="next">›</button></div>' +
       '<div class="cal"><div class="wd">Sun</div><div class="wd">Mon</div><div class="wd">Tue</div><div class="wd">Wed</div><div class="wd">Thu</div><div class="wd">Fri</div><div class="wd">Sat</div>' + cells + '</div>' +
       '<p class="small muted">Blue = upcoming · grey = worked. Tap a shift for details.</p><div id="det"></div></div>' + footer());
@@ -307,6 +317,7 @@
     }).catch(function (e) { h('<div class="card"><p class="err">' + esc(e.message) + '</p></div>' + footer()); });
   }
   function leavePage(email) {
+    state.page = 'Leave the list';
     if (email) return leaveFlow({ email: email });
     var c = activeCode();
     h(header('', false) + '<div class="card"><h2>Leave the volunteer list</h2><p class="muted">Enter the email address Hub emails come to.</p>' +
@@ -316,14 +327,48 @@
     on('#usecode', 'click', function (e) { e.preventDefault(); leaveFlow({ code: c }); });
   }
 
-  // ---------- admin
+  // ---------- admin (Google sign-in; the Hub checks the account against Lists › Portal admins)
+  function adminSess() { var a = store(ADMIN); return a && a.session && a.expires > Date.now() ? a : null; }
+  function adminReq(extra) { var a = adminSess() || {}, o = { adminSession: a.session }; for (var k in extra) o[k] = extra[k]; return o; }
+  function adminFail(e) {
+    if (/expired|sign in with google/i.test(e.message)) { try { localStorage.removeItem(ADMIN); } catch (x) {} return adminStart('Your admin sign-in expired. Sign in again.'); }
+    h(adminBar() + '<div class="card"><p class="err">' + esc(e.message) + '</p></div>' + footer()); wireAdminBar();
+  }
+  function adminStart(note) {
+    state.admin = true; state.page = 'Portal admin';
+    if (adminSess()) return adminSearch();
+    var cid = window.HUB_GOOGLE_CLIENT_ID;
+    h(header('', false) + '<div class="card"><h2>Admin sign-in</h2><p class="muted">Sign in with the Google account that is on the Portal admins list.</p>' +
+      (note ? '<p class="err">' + esc(note) + '</p>' : '') + (cid ? '<div id="gbtn"></div>' : '<p class="err">Admin sign-in is not set up yet.</p>') +
+      '<p class="err" id="msg"></p><button class="btn" id="cancelAdm">Cancel</button></div>' + footer());
+    on('#cancelAdm', 'click', function () { state.admin = false; state.data ? renderHome(state.data, false) : home(); });
+    if (!cid) return;
+    var draw = function () {
+      google.accounts.id.initialize({ client_id: cid, auto_select: false, callback: function (r) {
+        document.getElementById('msg').textContent = '';
+        call('adminGoogle', { credential: r.credential }).then(function (a) { store(ADMIN, a); adminSearch(); })
+          .catch(function (e) { var m = document.getElementById('msg'); if (m) m.textContent = e.message; });
+      } });
+      google.accounts.id.renderButton(document.getElementById('gbtn'), { theme: 'outline', size: 'large', text: 'signin_with' });
+    };
+    if (window.google && google.accounts && google.accounts.id) return draw();
+    var sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true; sc.onload = draw;
+    sc.onerror = function () { document.getElementById('msg').textContent = 'Could not load Google sign-in. Check your connection and try again.'; };
+    document.head.appendChild(sc);
+  }
   function adminBar() {
-    return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">Read-only. Every lookup is logged.</div></div>' +
-      '<div class="pills"><button class="pill" id="adms">Search</button><button class="pill" id="admx">Exit admin</button></div></header>';
+    var a = adminSess() || {};
+    return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">' + esc(a.name || '') + ' · read-only · every lookup is logged</div></div>' +
+      '<div class="pills"><button class="pill" id="adms">Search</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
   }
   function wireAdminBar() {
     on('#adms', 'click', adminSearch);
-    on('#admx', 'click', function () { state.admin = false; renderHome(state.data, false); });
+    on('#admx', 'click', function () { state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home(); });
+    on('#admo', 'click', function () {
+      var a = adminSess(); try { localStorage.removeItem(ADMIN); } catch (x) {}
+      if (a) call('adminSignOut', { adminSession: a.session }).catch(function () {});
+      state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home();
+    });
   }
   function adminSearch() {
     h(adminBar() + '<div class="card"><h2>Look up a volunteer</h2><input id="q" placeholder="Name, email, or phone number"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' + footer());
@@ -331,25 +376,24 @@
     var go = function () {
       var q = document.getElementById('q').value.trim(), msg = document.getElementById('msg'), res = document.getElementById('res');
       msg.textContent = ''; res.innerHTML = '<div class="spin"></div>';
-      call('adminSearch', { code: activeCode(), q: q }).then(function (r) {
+      call('adminSearch', adminReq({ q: q })).then(function (r) {
         if (!r.hits.length) { res.innerHTML = '<p class="muted">No matches.</p>'; return; }
         res.innerHTML = r.hits.map(function (x) {
           return '<button class="hit" data-id="' + esc(x.personId) + '"><b>' + esc(x.name) + '</b>' + (x.minor ? ' <span class="small muted">(minor)</span>' : '') +
             '<div class="small muted">' + esc(x.email) + (x.phone ? ' · ' + esc(x.phone) : '') + ' · ' + esc(x.status) + '</div></button>';
         }).join('') + (r.more ? '<p class="small muted">' + r.more + ' more. Narrow the search.</p>' : '');
         on('.hit', 'click', function () { adminView(this.getAttribute('data-id')); });
-      }).catch(function (e) { res.innerHTML = ''; msg.textContent = e.message; });
+      }).catch(function (e) { res.innerHTML = ''; if (/expired|sign in with google/i.test(e.message)) return adminFail(e); msg.textContent = e.message; });
     };
     on('#go', 'click', go); on('#q', 'keydown', function (e) { if (e.key === 'Enter') go(); });
   }
   function adminView(pid) {
     spinner('Loading volunteer…');
-    call('adminView', { code: activeCode(), personId: pid }).then(function (d) { state.adminData = d; renderHome(d, true); })
-      .catch(function (e) { h(adminBar() + '<div class="card"><p class="err">' + esc(e.message) + '</p></div>'); wireAdminBar(); });
+    call('adminView', adminReq({ personId: pid })).then(function (d) { state.adminData = d; renderHome(d, true); }).catch(adminFail);
   }
   function adminCard(d) {
     var a = d.adminView || {};
-    return '<div class="card admincard"><div class="big">' + esc(a.name) + '</div>' +
+    return '<div class="card admincard wide"><div class="big">' + esc(a.name) + '</div>' +
       '<div class="small">' + esc(a.email) + '</div>' +
       '<div class="small">' + (a.phone ? '<a href="' + telLink(a.phone) + '">' + esc(a.phone) + '</a>' : '<span class="muted">no phone</span>') + (a.parentPhone ? ' · parent ' + esc(a.parentPhone) : '') + '</div>' +
       '<div class="small">Status: <b>' + esc(a.status) + '</b>' + (a.inactiveReason ? ' — ' + esc(a.inactiveReason) : '') + '</div>' +
