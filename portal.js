@@ -56,6 +56,11 @@
   var qs = new URLSearchParams(location.search);
   var view = qs.get('view');
   if (view === 'leave') return leavePage(qs.get('email') || '');
+  if (view === 'admin') {   // "Back to admin portal" from an admin-opened page (p = the volunteer they were working on)
+    var p0 = qs.get('p'); history.replaceState(null, '', location.pathname);
+    if (adminSess()) { state.admin = true; return p0 ? adminView(p0) : adminSearch(); }
+    return adminStart();
+  }
   if (qs.get('code') && view === 'home') {   // a personal portal link: remember the code on this device, then clean the address bar
     var c0 = normCode(qs.get('code')); if (c0.length >= 6) saveCode(c0, '');
     history.replaceState(null, '', location.pathname);
