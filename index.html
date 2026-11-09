@@ -77,7 +77,7 @@
   if (!q || q === '?' || v0 === 'home' || v0 === 'leave') {   // the portal and the leave page are built here, not by the Hub
     var hub = document.getElementById('hub'); hub.className = 'wrap portal'; hub.innerHTML = '';
     if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') { hub.style.paddingTop = '22px'; var bar = document.createElement('div'); bar.className = 'env'; bar.textContent = window.HUB_ENV + ' – test copy, not live data'; document.body.appendChild(bar); }
-    var sc = document.createElement('script'); sc.src = 'portal.js?v=2'; document.body.appendChild(sc);
+    var sc = document.createElement('script'); sc.src = 'portal.js?v=3'; document.body.appendChild(sc);
     return;
   }
   var url = window.HUB_API + q + (q.indexOf('?') === 0 ? '&' : '?') + 'raw=1';

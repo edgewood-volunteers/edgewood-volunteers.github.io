@@ -15,13 +15,18 @@
   function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
   function fmtCode(c) { c = normCode(c); return c.length === 8 ? c.slice(0, 4) + '-' + c.slice(4) : c; }
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } }
-  function codes() { return store(KEY) || []; }
-  function saveCode(code, first) {
-    var list = codes().filter(function (x) { return x.code !== code; });
-    list.unshift({ code: code, first: first || '' }); store(KEY, list.slice(0, 8)); store(ACTIVE, code);
+  /** People remembered on this device. Full: {id, code}. Email only (limited): {id, email, personId, limited}. */
+  function codes() { return (store(KEY) || []).map(function (x) { if (!x.id) x.id = x.code; return x; }); }
+  function saveEntry(e) {
+    e.id = e.code || ('E:' + e.email + '|' + (e.personId || ''));
+    var list = codes().filter(function (x) { return x.id !== e.id && !(e.code && x.limited && x.personId === e.personId); });   // a code replaces the same person's email sign-in
+    list.unshift(e); store(KEY, list.slice(0, 8)); store(ACTIVE, e.id);
   }
-  function dropCode(code) { store(KEY, codes().filter(function (x) { return x.code !== code; })); if (store(ACTIVE) === code) store(ACTIVE, (codes()[0] || {}).code || null); }
-  function activeCode() { var a = store(ACTIVE), list = codes(); return list.some(function (x) { return x.code === a; }) ? a : (list[0] || {}).code || null; }
+  function saveCode(code, first, personId) { saveEntry({ code: code, first: first || '', personId: personId || '' }); }
+  function dropEntry(id) { store(KEY, codes().filter(function (x) { return x.id !== id; })); if (store(ACTIVE) === id) store(ACTIVE, (codes()[0] || {}).id || null); }
+  function activeEntry() { var a = store(ACTIVE), list = codes(); return list.filter(function (x) { return x.id === a; })[0] || list[0] || null; }
+  function activeCode() { var e = activeEntry(); return e && e.code ? e.code : null; }
+  function reqOf(e) { return e.code ? { code: e.code } : { email: e.email, personId: e.personId }; }
   /** Links the Hub builds point at the web app until Public site URL is set; keep people on this site. */
   function toSite(u) {
     if (!u) return '';
@@ -55,14 +60,15 @@
 
   // ---------- portal home
   function home() {
-    var code = activeCode();
-    if (!code) return signIn();
+    var ent = activeEntry();
+    if (!ent) return signIn();
     spinner('Loading your page…');
-    call('portal', { code: code }).then(function (d) {
-      state.data = d; saveCode(code, d.me.first);
+    call('portal', reqOf(ent)).then(function (d) {
+      if (d.pick) return pickPerson(ent.email, d.pick);
+      state.data = d; ent.first = d.me.first; ent.personId = d.me.personId; saveEntry(ent);
       renderHome(d, false);
     }).catch(function (e) {
-      if (/couldn't find that code/i.test(e.message)) { dropCode(code); return signIn('That saved code no longer works. Enter your current code.'); }
+      if (/couldn't find that/i.test(e.message)) { dropEntry(ent.id); return signIn('That saved sign-in no longer works. Enter your current code or email.'); }
       h('<div class="card"><p class="err">' + esc(e.message) + '</p><button class="btn" id="retry">Try again</button></div>'); on('#retry', 'click', home);
     });
   }
@@ -70,26 +76,46 @@
   function signIn(note) {
     h(header('', false) +
       '<div class="card"><h2>Your volunteer page</h2>' +
-      '<p class="muted">Enter the volunteer code from your Hub email (it looks like K7Q4-M9XD). This device will remember it.</p>' +
+      '<p class="muted">Enter the volunteer code from your Hub email (it looks like K7Q4-M9XD) for everything, or your email address to see your shifts, hours and paperwork. This device will remember it.</p>' +
       (note ? '<p class="err">' + esc(note) + '</p>' : '') +
-      '<input id="code" autocomplete="off" autocapitalize="characters" placeholder="ABCD-1234">' +
+      '<input id="code" autocomplete="off" placeholder="ABCD-1234 or you@example.com">' +
       '<button class="btn primary" id="go">Open my page</button><p class="err" id="msg"></p></div>' +
       '<div class="card"><a class="btn" href="?view=coverage">See open spots</a></div>' + footer());
     var go = function () {
-      var c = normCode(document.getElementById('code').value), msg = document.getElementById('msg');
-      if (c.length < 6) { msg.textContent = 'That code looks too short. It is 8 letters and numbers.'; return; }
+      var raw = document.getElementById('code').value.trim(), msg = document.getElementById('msg');
       msg.textContent = '';
-      call('portal', { code: c }).then(function (d) { saveCode(c, d.me.first); state.data = d; renderHome(d, false); })
+      if (/@/.test(raw)) {
+        var em = raw.toLowerCase();
+        call('portal', { email: em }).then(function (d) {
+          if (d.pick) return pickPerson(em, d.pick);
+          saveEntry({ email: em, personId: d.me.personId, first: d.me.first, limited: true }); state.data = d; renderHome(d, false);
+        }).catch(function (e) { msg.textContent = e.message; });
+        return;
+      }
+      var c = normCode(raw);
+      if (c.length < 6) { msg.textContent = 'Enter your email address, or the 8-letter code from your Hub email.'; return; }
+      call('portal', { code: c }).then(function (d) { saveCode(c, d.me.first, d.me.personId); state.data = d; renderHome(d, false); })
         .catch(function (e) { msg.textContent = e.message; });
     };
     on('#go', 'click', go);
     on('#code', 'keydown', function (e) { if (e.key === 'Enter') go(); });
   }
 
+  function pickPerson(email, list) {
+    h(header('', false) + '<div class="card"><h2>Who are you?</h2><p class="muted">More than one volunteer uses this email.</p>' +
+      list.map(function (p) { return '<button class="btn" data-pid="' + esc(p.personId) + '">' + esc(p.first) + '</button>'; }).join('') + '<p class="err" id="msg"></p></div>' + footer());
+    on('[data-pid]', 'click', function () {
+      var pid = this.getAttribute('data-pid');
+      call('portal', { email: email, personId: pid }).then(function (d) {
+        saveEntry({ email: email, personId: pid, first: d.me.first, limited: true }); state.data = d; renderHome(d, false);
+      }).catch(function (e) { document.getElementById('msg').textContent = e.message; });
+    });
+  }
+
   function header(first, isAdmin) {
-    var list = codes(), act = activeCode();
+    var list = codes(), act = (activeEntry() || {}).id;
     var pills = list.map(function (x) {
-      return '<button class="pill' + (x.code === act && !state.admin ? ' on' : '') + '" data-code="' + esc(x.code) + '">' + esc(x.first || fmtCode(x.code)) + '</button>';
+      return '<button class="pill' + (x.id === act && !state.admin ? ' on' : '') + '" data-code="' + esc(x.id) + '">' + esc(x.first || (x.code ? fmtCode(x.code) : x.email)) + '</button>';
     }).join('') + (list.length ? '<button class="pill add" id="addp" title="Add another person on this device">+</button>' : '');
     return '<header><div><div class="title">Edgewood Volunteer Hub</div><div class="sub">' + (first ? 'Hi, ' + esc(first) : 'Volunteer pages') + '</div></div>' +
       '<div class="pills">' + pills + (isAdmin ? '<button class="pill admin' + (state.admin ? ' on' : '') + '" id="adm">Admin</button>' : '') + '</div></header>';
@@ -108,12 +134,13 @@
     var me = d.me, sh = d.shifts || {}, up = sh.upcoming || [], next = up[0];
     var out = asAdmin ? adminBar(d) : header(me.first, d.isAdmin);
     if (asAdmin) out += adminCard(d);
+    if (d.limited && !asAdmin) out += '<div class="card"><b>Signed in with your email.</b><div class="small">You can see your shifts, hours and paperwork. For your personal links (paperwork page, naming your spots, logging stand hours), enter the code from your Hub email.</div><button class="btn" id="usecode">Enter my code</button></div>';
     if (!me.active) out += '<div class="card warn">' + esc(me.first) + ' is not on the volunteer list right now. Signing up for a shift adds you back automatically.</div>';
 
     // Game day
     (d.standToday || []).forEach(function (s) {
       out += '<div class="card gameday"><div class="tag">Today · you\'re the stand lead</div><div class="big">' + esc(s.stand) + (s.event ? ' · ' + esc(s.event) : '') + '</div>' +
-        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Log your stand\'s hours</a>' : '<p class="muted">Stand link (admin view hides it).</p>') + '</div>';
+        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Log your stand\'s hours</a>' : '<p class="small muted">' + (asAdmin ? 'Admin view hides the stand link.' : 'Your stand link is in your Hub email, or enter your code above to open it here.') + '</p>') + '</div>';
     });
 
     // Paperwork
@@ -131,7 +158,7 @@
     // Spots needing names
     (d.spots || []).forEach(function (s) {
       out += '<div class="card warn"><b>' + esc(s.date) + (s.event ? ' · ' + esc(s.event) : '') + '</b><div class="small">Spots under your name still need a name for who\'s working them.</div>' +
-        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Name my spots</a>' : '') + '</div>';
+        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Name my spots</a>' : (asAdmin ? '' : '<div class="small muted">Use the link in your Hub email, or enter your code to open it here.</div>')) + '</div>';
     });
 
     // Next shift
@@ -163,14 +190,25 @@
       (!asAdmin && d.links.upload ? '<a class="btn" href="' + esc(toSite(d.links.upload)) + '">Update my info</a>' : '') +
       '<a class="btn" href="mailto:' + LIAISON + '">Contact the liaison</a></div>';
 
-    if (!asAdmin) out += '<div class="center small"><a href="#" id="leave">Leave the volunteer list</a> · <a href="#" id="signout">Sign out on this device</a></div>';
+    if (!asAdmin) out += '<div class="center small"><a href="#" id="leave">Leave the volunteer list</a> · <a href="#" id="signout">Forget me on this device</a>' +
+      (codes().length > 1 ? ' · <a href="#" id="forgetall">Forget everyone on this device</a>' : '') + '</div>';
     out += footer();
     h(out);
     if (!asAdmin) wireHeader(); else wireAdminBar();
     on('#cal', 'click', function () { calendar(d, asAdmin); });
     on('#hist', 'click', function () { history_(d, asAdmin); });
-    on('#leave', 'click', function (e) { e.preventDefault(); leaveFlow({ code: activeCode() }, function () { renderHome(d, false); }); });
-    on('#signout', 'click', function (e) { e.preventDefault(); dropCode(activeCode()); home(); });
+    on('#leave', 'click', function (e) { e.preventDefault(); var en = activeEntry() || {}; leaveFlow(en.code ? { code: en.code } : { email: en.email }, function () { renderHome(d, false); }); });
+    on('#signout', 'click', function (e) {
+      e.preventDefault(); var en = activeEntry() || {};
+      if (!confirm('Forget ' + (en.first || 'this person') + ' on this device? You will need your code or email to sign in again.')) return;
+      dropEntry(en.id); home();
+    });
+    on('#forgetall', 'click', function (e) {
+      e.preventDefault();
+      if (!confirm('Forget everyone saved on this device?')) return;
+      try { localStorage.removeItem(KEY); localStorage.removeItem(ACTIVE); } catch (x) {} home();
+    });
+    on('#usecode', 'click', function () { signIn(); });
   }
 
   // ---------- calendar of my shifts
@@ -263,7 +301,7 @@
         call('leave', { code: who.code || '', email: info.email, ids: ids, reason: why.value, other: other.value }).then(function (r) {
           h('<div class="card center"><h2>You\'re off the list</h2><p>' + esc((r.names || []).join(' and ')) + ' will no longer get Hub emails. A confirmation is on its way.</p>' +
             (r.kept && r.kept.length ? '<p class="small err">Not removed (still signed up): ' + esc(r.kept.join('; ')) + '</p>' : '') + '<p class="muted">Thank you for volunteering.</p></div>' + footer());
-          if (who.code) dropCode(who.code);
+          var en = activeEntry(); if (en && ((who.code && en.code === who.code) || (who.email && en.email === who.email))) dropEntry(en.id);
         }).catch(function (e) { document.getElementById('msg').textContent = e.message; btn.disabled = false; });
       });
     }).catch(function (e) { h('<div class="card"><p class="err">' + esc(e.message) + '</p></div>' + footer()); });
