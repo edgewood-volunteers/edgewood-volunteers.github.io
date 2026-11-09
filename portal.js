@@ -148,7 +148,7 @@
     // Game day
     (d.standToday || []).forEach(function (s) {
       out += '<div class="card gameday wide"><div class="tag">Today · you\'re the stand lead</div><div class="big">' + esc(s.stand) + (s.event ? ' · ' + esc(s.event) : '') + '</div>' +
-        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Log your stand\'s hours</a>' : '<p class="small muted">' + (asAdmin ? 'Admin view hides the stand link.' : 'Your stand link is in your Hub email, or enter your code above to open it here.') + '</p>') +
+        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Log your stand\'s hours</a>' : s.act ? '<a class="btn primary" href="' + esc(toSite(s.act)) + '">Open this stand\'s time sheet (as admin)</a>' : '<p class="small muted">' + (asAdmin ? 'Admin view hides the stand link.' : 'Your stand link is in your Hub email, or enter your code above to open it here.') + '</p>') +
         (d.techPhone ? '<a class="btn" href="' + telLink(d.techPhone, 'sms') + '">Page not working? Text tech support (Nick)</a>' : '') + '</div>';
     });
 
@@ -167,7 +167,7 @@
     // Spots needing names
     (d.spots || []).forEach(function (s) {
       out += '<div class="card warn"><b>' + esc(s.date) + (s.event ? ' · ' + esc(s.event) : '') + '</b><div class="small">Spots under your name still need a name for who\'s working them.</div>' +
-        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Name my spots</a>' : (asAdmin ? '' : '<div class="small muted">Use the link in your Hub email, or enter your code to open it here.</div>')) + '</div>';
+        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Name my spots</a>' : s.act ? '<a class="btn primary" href="' + esc(toSite(s.act)) + '">Name spots for them (as admin)</a>' : (asAdmin ? '' : '<div class="small muted">Use the link in your Hub email, or enter your code to open it here.</div>')) + '</div>';
     });
 
     // Next shift
@@ -358,7 +358,7 @@
   }
   function adminBar() {
     var a = adminSess() || {};
-    return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">' + esc(a.name || '') + ' · read-only · every lookup is logged</div></div>' +
+    return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">' + esc(a.name || '') + ' · every lookup and change is logged</div></div>' +
       '<div class="pills"><button class="pill" id="adms">Search</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
   }
   function wireAdminBar() {
@@ -371,8 +371,20 @@
     });
   }
   function adminSearch() {
-    h(adminBar() + '<div class="card"><h2>Look up a volunteer</h2><input id="q" placeholder="Name, email, or phone number"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' + footer());
+    h(adminBar() + '<div class="cols"><div class="card"><h2>Look up a volunteer</h2><input id="q" placeholder="Name, email, or phone number"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' +
+      '<div class="card"><h2>Stands (last 3 days)</h2><div id="stands"><div class="spin"></div></div></div></div>' + footer());
     wireAdminBar();
+    call('adminStands', adminReq({})).then(function (r) {
+      var el = document.getElementById('stands'); if (!el) return;
+      if (!r.stands.length) { el.innerHTML = '<p class="muted">No stands today or in the last 2 days.</p>'; return; }
+      var day = '';
+      el.innerHTML = r.stands.map(function (x) {
+        var head = x.date !== day ? '<div class="small muted" style="margin-top:8px"><b>' + (x.today ? 'Today · ' : '') + esc(x.date) + '</b></div>' : ''; day = x.date;
+        return head + '<div class="hrow"><span><b>' + esc(x.stand) + '</b>' + (x.event ? ' · ' + esc(x.event) : '') +
+          '<div class="small muted">' + (x.chair ? 'Lead ' + esc(x.chair) + ' · ' : '') + esc(x.status) + (x.submittedBy ? ' · by ' + esc(x.submittedBy) : '') + '</div></span>' +
+          (x.act ? '<a class="btn sm" href="' + esc(toSite(x.act)) + '">Time sheet</a>' : '<span class="small muted">approved</span>') + '</div>';
+      }).join('');
+    }).catch(function (e) { var el = document.getElementById('stands'); if (/expired|sign in with google/i.test(e.message)) return adminFail(e); if (el) el.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
     var go = function () {
       var q = document.getElementById('q').value.trim(), msg = document.getElementById('msg'), res = document.getElementById('res');
       msg.textContent = ''; res.innerHTML = '<div class="spin"></div>';
@@ -397,6 +409,8 @@
       '<div class="small">' + esc(a.email) + '</div>' +
       '<div class="small">' + (a.phone ? '<a href="' + telLink(a.phone) + '">' + esc(a.phone) + '</a>' : '<span class="muted">no phone</span>') + (a.parentPhone ? ' · parent ' + esc(a.parentPhone) : '') + '</div>' +
       '<div class="small">Status: <b>' + esc(a.status) + '</b>' + (a.inactiveReason ? ' — ' + esc(a.inactiveReason) : '') + '</div>' +
-      '<div class="small muted">Shirt ' + esc(a.shirt || '—') + ' · Groups ' + esc(a.groups || '—') + ' · Students ' + esc(a.students || '—') + '</div></div>';
+      '<div class="small muted">Shirt ' + esc(a.shirt || '—') + ' · Groups ' + esc(a.groups || '—') + ' · Students ' + esc(a.students || '—') + '</div>' +
+      (a.actInfo ? '<a class="btn" href="' + esc(toSite(a.actInfo)) + '">Update their info / paperwork (as admin)</a>' : '') +
+      '<div class="small muted">Admin links work while you\'re signed in. Anything you submit is stamped "Admin – your name".</div></div>';
   }
 })();
