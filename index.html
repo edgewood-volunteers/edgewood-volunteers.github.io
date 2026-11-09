@@ -14,6 +14,41 @@
   @keyframes s { to { transform: rotate(360deg); } }
   a.btn { display: inline-block; margin-top: 12px; padding: 10px 16px; background: #0b2545; color: #fff; border-radius: 8px; text-decoration: none; }
   .env { position: fixed; top: 0; left: 0; right: 0; background: #b45309; color: #fff; font-size: 12px; padding: 3px; text-align: center; z-index: 99999; }
+  #hub.portal { max-width: 480px; text-align: left; padding: 0 0 24px; }
+  header { background: #0b2545; color: #fff; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  header.adminhdr { background: #7c2d12; }
+  header .title { font-weight: 600; font-size: 16px; } header .sub { font-size: 12px; opacity: .85; }
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { background: transparent; color: #fff; border: 1px solid #ffffff99; border-radius: 99px; padding: 4px 11px; font-size: 13px; cursor: pointer; }
+  .pill.on { background: #fff; color: #0b2545; } .pill.admin { border-color: #fbbf24; color: #fbbf24; } .pill.admin.on { background: #fbbf24; color: #0b2545; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 14px; margin: 10px 12px; }
+  .card.inner { margin: 10px 0 0; background: #f8fafc; }
+  .card.warn { border-color: #fca5a5; background: #fef2f2; }
+  .card.gameday { border-color: #fcd34d; background: #fffbeb; }
+  .card.admincard { border-color: #fdba74; background: #fff7ed; }
+  .card.center, .center { text-align: center; }
+  .card h2 { font-size: 18px; margin: 0 0 6px; color: #0b2545; }
+  .tag { font-size: 12px; color: #92400e; } .big { font-weight: 600; font-size: 15px; margin: 2px 0; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .small { font-size: 13px; } .muted { color: #6b7280; } .err { color: #b91c1c; } .ok { color: #15803d; }
+  .list { list-style: none; padding: 0; margin: 6px 0; } .list li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 14px; }
+  .btn { display: inline-block; box-sizing: border-box; width: 100%; margin-top: 8px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0b2545; font-size: 14px; text-align: center; text-decoration: none; cursor: pointer; }
+  .btn.primary { background: #0b2545; color: #fff; border-color: #0b2545; } .btn.danger { background: #b91c1c; color: #fff; border-color: #b91c1c; width: auto; }
+  .btn.sm { width: auto; margin: 0; padding: 4px 10px; } .btn:disabled { opacity: .5; cursor: default; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 12px; } .grid2 .btn { margin: 0; }
+  .stat { background: #f1f5f9; border-radius: 8px; padding: 10px; } .num { font-size: 22px; font-weight: 600; color: #0b2545; }
+  input, select, textarea { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; margin-top: 6px; }
+  textarea { min-height: 70px; }
+  .lbl { display: block; margin-top: 12px; font-size: 14px; font-weight: 600; }
+  .chk { display: block; padding: 6px 0; } .chk.dim { opacity: .7; } .chk input { width: auto; margin-right: 6px; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; } .wd { font-size: 11px; color: #6b7280; text-align: center; }
+  .cell { min-height: 54px; border: 1px solid #eef2f7; border-radius: 6px; padding: 2px; } .cell.empty { border: 0; } .cell.today { border-color: #0b2545; }
+  .dn { font-size: 11px; color: #6b7280; }
+  .chip { display: block; width: 100%; margin-top: 2px; padding: 2px 3px; border: 0; border-radius: 4px; background: #dbeafe; color: #1e3a8a; font-size: 10px; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .chip.past { background: #e5e7eb; color: #4b5563; }
+  .hrow { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #f1f5f9; } .right { text-align: right; }
+  .hit { display: block; width: 100%; text-align: left; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; margin-top: 6px; cursor: pointer; }
+  footer { text-align: center; font-size: 12px; color: #6b7280; margin: 18px 12px; }
 </style>
 <script src="config.js"></script>
 </head>
@@ -35,7 +70,13 @@
     var a = document.createElement('a'); a.className = 'btn'; a.href = '?view=coverage'; a.textContent = 'See open spots';
     document.getElementById('hub').appendChild(a);
   }
-  if (!q || q === '?') { landing(); return; }
+  var v0 = new URLSearchParams(q).get('view');
+  if (!q || q === '?' || v0 === 'home' || v0 === 'leave') {   // the portal and the leave page are built here, not by the Hub
+    var hub = document.getElementById('hub'); hub.className = 'wrap portal'; hub.innerHTML = '';
+    if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') { hub.style.paddingTop = '22px'; var bar = document.createElement('div'); bar.className = 'env'; bar.textContent = window.HUB_ENV + ' – test copy, not live data'; document.body.appendChild(bar); }
+    var sc = document.createElement('script'); sc.src = 'portal.js?v=1'; document.body.appendChild(sc);
+    return;
+  }
   var url = window.HUB_API + q + (q.indexOf('?') === 0 ? '&' : '?') + 'raw=1';
   fetch(url).then(function (r) {
     if (!r.ok) throw new Error('status ' + r.status);
