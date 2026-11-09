@@ -96,7 +96,7 @@
   }
   function wireHeader() {
     on('.pill[data-code]', 'click', function () { state.admin = false; store(ACTIVE, this.getAttribute('data-code')); home(); });
-    on('#addp', 'click', function () { state.admin = false; store(ACTIVE, null); var keep = codes(); signIn(); store(KEY, keep); });
+    on('#addp', 'click', function () { state.admin = false; signIn(); });
     on('#adm', 'click', function () { state.admin = !state.admin; state.admin ? adminSearch() : renderHome(state.data, false); });
   }
   function footer() {
@@ -126,12 +126,12 @@
         (x.fix ? 'needs a fix' : x.exp ? 'to ' + esc(x.exp) : '') + '</span></li>';
     });
     miss.forEach(function (m) { out += '<li><span>⚠️ ' + esc(m) + '</span></li>'; });
-    out += '</ul>' + (!asAdmin && d.links.upload ? '<a class="btn" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
+    out += '</ul>' + (!asAdmin && d.links.upload ? '<a class="btn' + (bad ? ' primary' : '') + '" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
 
     // Spots needing names
     (d.spots || []).forEach(function (s) {
       out += '<div class="card warn"><b>' + esc(s.date) + (s.event ? ' · ' + esc(s.event) : '') + '</b><div class="small">Spots under your name still need a name for who\'s working them.</div>' +
-        (s.link ? '<a class="btn" href="' + esc(toSite(s.link)) + '">Name my spots</a>' : '') + '</div>';
+        (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Name my spots</a>' : '') + '</div>';
     });
 
     // Next shift
