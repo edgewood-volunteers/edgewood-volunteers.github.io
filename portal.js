@@ -85,8 +85,9 @@
   function signIn(note) {
     h(header('', false) +
       '<div class="card"><h2>Your volunteer page</h2>' +
-      '<p class="muted">Enter the volunteer code from your Hub email (it looks like K7Q4-M9XD) for everything, or your email address to see your shifts, hours and paperwork. This device will remember it.</p>' +
       (note ? '<p class="err">' + esc(note) + '</p>' : '') +
+      (window.HUB_GOOGLE_CLIENT_ID ? '<div id="gbtn" class="gbtn"></div><p class="small muted">New volunteer? Sign in with Google to get started.</p><div class="or"><span>or</span></div>' : '') +
+      '<p class="muted">Enter the volunteer code from your Hub email (it looks like K7Q4-M9XD) for everything, or your email address to see your shifts, hours and paperwork. This device will remember it.</p>' +
       '<input id="code" autocomplete="off" placeholder="ABCD-1234 or you@example.com">' +
       '<button class="btn primary" id="go">Open my page</button><p class="err" id="msg"></p></div>' +
       '<div class="card"><a class="btn" href="?view=coverage">See open spots</a></div>' + footer());
@@ -108,6 +109,48 @@
     };
     on('#go', 'click', go);
     on('#code', 'keydown', function (e) { if (e.key === 'Enter') go(); });
+    gsi('gbtn', function (cred) {
+      var msg = document.getElementById('msg'); msg.textContent = '';
+      state.page = 'Portal (Google)';
+      call('portalGoogle', { credential: cred }).then(function (r) {
+        if (r.people && r.people.length) { r.people.slice().reverse().forEach(function (p) { saveCode(p.code, p.first, p.personId); }); return home(); }
+        googleNew(r, cred);
+      }).catch(function (e) { msg.textContent = e.message; });
+    });
+  }
+
+  /** Google sign-in button (the same Google client as admin sign-in). */
+  function gsi(elId, onCred) {
+    var cid = window.HUB_GOOGLE_CLIENT_ID, el = document.getElementById(elId); if (!cid || !el) return;
+    var draw = function () {
+      google.accounts.id.initialize({ client_id: cid, auto_select: false, callback: function (r) { onCred(r.credential); } });
+      google.accounts.id.renderButton(document.getElementById(elId), { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill' });
+    };
+    if (window.google && google.accounts && google.accounts.id) return draw();
+    var sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true; sc.onload = draw;
+    sc.onerror = function () { el.textContent = 'Google sign-in could not load. Use your code or email instead.'; };
+    document.head.appendChild(sc);
+  }
+
+  /** Signed in with Google, but that email is not on the volunteer list: sign up, or link it once with the code. */
+  function googleNew(r, cred) {
+    state.page = 'Portal (Google, new)';
+    h(header('', false) +
+      '<div class="card"><h2>Welcome' + (r.first ? ', ' + esc(r.first) : '') + '!</h2>' +
+      '<p class="muted">We don\'t have <b>' + esc(r.email) + '</b> on the volunteer list yet.</p>' +
+      '<a class="btn primary" href="' + esc(toSite(r.newLink)) + '">I\'m new: sign me up</a>' +
+      '<p class="small muted">Opens the volunteer form with your name and email filled in. Your page opens as soon as you finish.</p></div>' +
+      '<div class="card"><h2>Already a volunteer?</h2><p class="muted">Enter the code from your Hub email once. After that, this Google account opens your page. Your Hub emails keep going where they go now.</p>' +
+      '<input id="lcode" autocomplete="off" placeholder="ABCD-1234"><button class="btn" id="link">Link my Google account</button><p class="err" id="msg"></p></div>' +
+      '<div class="center small"><a href="#" id="back">Back</a></div>' + footer());
+    var go = function () {
+      var c = normCode(document.getElementById('lcode').value), msg = document.getElementById('msg'); msg.textContent = '';
+      if (c.length < 6) { msg.textContent = 'Enter the 8-letter code from your Hub email.'; return; }
+      call('portalGoogleLink', { credential: cred, code: c }).then(function (p) { saveCode(p.code, p.first, p.personId); home(); })
+        .catch(function (e) { msg.textContent = /confirm that sign-in/i.test(e.message) ? 'Your Google sign-in timed out. Tap Back and sign in with Google again.' : e.message; });
+    };
+    on('#link', 'click', go); on('#lcode', 'keydown', function (e) { if (e.key === 'Enter') go(); });
+    on('#back', 'click', function (e) { e.preventDefault(); signIn(); });
   }
 
   function pickPerson(email, list) {
@@ -349,18 +392,11 @@
       '<p class="err" id="msg"></p><button class="btn" id="cancelAdm">Cancel</button></div>' + footer());
     on('#cancelAdm', 'click', function () { state.admin = false; state.data ? renderHome(state.data, false) : home(); });
     if (!cid) return;
-    var draw = function () {
-      google.accounts.id.initialize({ client_id: cid, auto_select: false, callback: function (r) {
-        document.getElementById('msg').textContent = '';
-        call('adminGoogle', { credential: r.credential }).then(function (a) { store(ADMIN, a); adminSearch(); })
-          .catch(function (e) { var m = document.getElementById('msg'); if (m) m.textContent = e.message; });
-      } });
-      google.accounts.id.renderButton(document.getElementById('gbtn'), { theme: 'outline', size: 'large', text: 'signin_with' });
-    };
-    if (window.google && google.accounts && google.accounts.id) return draw();
-    var sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true; sc.onload = draw;
-    sc.onerror = function () { document.getElementById('msg').textContent = 'Could not load Google sign-in. Check your connection and try again.'; };
-    document.head.appendChild(sc);
+    gsi('gbtn', function (cred) {
+      document.getElementById('msg').textContent = '';
+      call('adminGoogle', { credential: cred }).then(function (a) { store(ADMIN, a); adminSearch(); })
+        .catch(function (e) { var m = document.getElementById('msg'); if (m) m.textContent = e.message; });
+    });
   }
   function adminBar() {
     var a = adminSess() || {};

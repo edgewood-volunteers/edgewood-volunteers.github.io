@@ -60,6 +60,9 @@
     #hub.portal .cell { min-height: 84px; } #hub.portal .chip { font-size: 12px; padding: 3px 5px; }
     header { padding: 16px 24px; }
   }
+  #hub.portal .gbtn { display: flex; justify-content: center; margin: 6px 0 4px; min-height: 44px; }
+  #hub.portal .or { display: flex; align-items: center; gap: 10px; color: #9ca3af; font-size: 13px; margin: 14px 0 6px; }
+  #hub.portal .or::before, #hub.portal .or::after { content: ''; flex: 1; border-top: 1px solid #e5e7eb; }
   footer { text-align: center; font-size: 12px; color: #6b7280; margin: 18px 12px; }
 </style>
 <script src="config.js"></script>
@@ -86,7 +89,7 @@
   if (!q || q === '?' || v0 === 'home' || v0 === 'leave' || v0 === 'admin') {   // the portal and the leave page are built here, not by the Hub
     var hub = document.getElementById('hub'); hub.className = 'wrap portal'; hub.innerHTML = '';
     if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') { hub.style.paddingTop = '22px'; var bar = document.createElement('div'); bar.className = 'env'; bar.textContent = window.HUB_ENV + ' – test copy, not live data'; document.body.appendChild(bar); }
-    var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=7'; document.body.appendChild(sc);
+    var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=8'; document.body.appendChild(sc);
     return;
   }
   // Any personal link with a volunteer code (?code=… on the paperwork and My shifts pages) remembers that person on
