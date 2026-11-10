@@ -73,7 +73,10 @@
       P + '.links .li .l{display:flex;align-items:center;gap:12px}',
       P + 'footer{color:#64748B}',
       P + 'footer a,' + P + '.center a{color:#1E3A8A}',
-      P + '.stat{background:#fff;border-radius:18px}'
+      P + '.stat{background:#fff;border-radius:18px}',
+      P + '.pend{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#FEF3C7;color:#78350F;font-size:13.5px}',
+      P + '.pend .dot{flex:none;width:8px;height:8px;border-radius:50%;background:#D97706}',
+      P + '.pend .muted{color:#92400E}'
     ].join('\n');
     var s = document.createElement('style'); s.id = 'hubv2css'; s.textContent = css; document.head.appendChild(s);
   })();
@@ -362,6 +365,9 @@
         '<div class="legend">' + order.map(function (k, i) { return '<span><i style="background:' + COL[i % COL.length] + '"></i>' + esc(k) + ' <b>' + esc(Math.round(byStud[k] * 100) / 100) + '</b></span>'; }).join('') + '</div>';
     } else out += '<div class="small muted" style="margin-top:8px">Credited to: ' + (studs || '—') + (sh.unpaid ? ' · ' + esc(sh.unpaid) + ' not paid out yet' : '') + '</div>';
     if (sh.unpaid && tot > 0) out += '<div class="small muted" style="margin-top:6px">' + esc(sh.unpaid) + ' not paid out yet</div>';
+    var pq = (sh.pending || []).concat(sh.awaiting || []), pH = pq.reduce(function (a, x) { return a + (Number(x.hours) || 0); }, 0);
+    if (pq.length) out += '<div class="pend"><span class="dot"></span><span><b>' + (pH ? esc(Math.round(pH * 100) / 100) + (Number(sh.hours) ? ' more' : '') + ' hour' + (pH === 1 ? '' : 's') : pq.length + (Number(sh.hours) ? ' more' : '') + ' shift' + (pq.length > 1 ? 's' : '')) + '</b> pending review' +
+      (pH ? ' <span class="muted">(' + pq.length + ' shift' + (pq.length > 1 ? 's' : '') + ')</span>' : '') + '</span></div>';
     out += '</div>';
 
     // Quick links
@@ -444,7 +450,7 @@
         '<div class="right"><b>' + esc(x.hours) + 'h</b><div class="small muted">' + esc(x.status || '') + '</div></div></div>';
     });
     (sh.pending || []).concat(sh.awaiting || []).forEach(function (x) {
-      o += '<div class="hrow"><div><b>' + esc(x.date) + '</b> ' + esc(x.event || '') + '<div class="small muted">' + esc(x.stand || '') + '</div></div><div class="right small muted">waiting for approval</div></div>';
+      o += '<div class="hrow"><div><b>' + esc(x.date) + '</b> ' + esc(x.event || '') + '<div class="small muted">' + esc(x.stand || '') + '</div></div><div class="right">' + (Number(x.hours) ? '<b>' + esc(x.hours) + 'h</b>' : '') + '<div class="small" style="color:#B45309">pending review</div></div></div>';
     });
     h(o + '</div>' + footer());
     if (!asAdmin) wireHeader(); else wireAdminBar();
