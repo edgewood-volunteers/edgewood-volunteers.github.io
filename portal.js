@@ -111,12 +111,12 @@
     on('#go', 'click', go);
     on('#code', 'keydown', function (e) { if (e.key === 'Enter') go(); });
     gsi('gbtn', function (cred) {
-      var msg = document.getElementById('msg'); msg.textContent = '';
       state.page = 'Portal (Google)';
+      spinner('Signing you in with Google…');   // the Hub check takes a few seconds; show it right away
       call('portalGoogle', { credential: cred }).then(function (r) {
         if (r.people && r.people.length) { r.people.slice().reverse().forEach(function (p) { saveCode(p.code, p.first, p.personId); }); return home(); }
         googleNew(r, cred);
-      }).catch(function (e) { msg.textContent = e.message; });
+      }).catch(function (e) { signIn(); var m = document.getElementById('msg'); if (m) m.textContent = e.message; });
     });
   }
 
@@ -397,9 +397,9 @@
     on('#cancelAdm', 'click', function () { state.admin = false; state.data ? renderHome(state.data, false) : home(); });
     if (!cid) return;
     gsi('gbtn', function (cred) {
-      document.getElementById('msg').textContent = '';
+      spinner('Signing you in with Google…');
       call('adminGoogle', { credential: cred }).then(function (a) { store(ADMIN, a); adminSearch(); })
-        .catch(function (e) { var m = document.getElementById('msg'); if (m) m.textContent = e.message; });
+        .catch(function (e) { adminStart(e.message); });
     });
   }
   function adminBar() {
