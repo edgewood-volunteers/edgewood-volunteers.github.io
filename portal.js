@@ -497,10 +497,10 @@
     if (needPerson) html += '<input id="aq" placeholder="Search name, email or phone"><div id="ares"></div><div id="apick" class="small"></div>';
     if (needSpot) html += '<select id="aspot" style="width:100%;padding:8px;margin:6px 0"><option value="">Loading positions…</option></select>';
     if (op === 'add' || op === 'hand') html += '<select id="acr" style="width:100%;padding:8px;margin:6px 0"><option value="">Credit: their student on file</option><option value="General fund">Credit: General fund</option></select>';
-    if (overrides) html += (op === 'hand' ? '' : '<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="aovt"> Override open time / lock</label>') +
-      '<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="aovl"> Override lead rule (logged)</label>' +
+    if (overrides) html += (op === 'hand' ? '' : '<label class="small" style="display:flex;align-items:center;gap:6px;margin:6px 0;cursor:pointer"><input type="checkbox" style="width:auto;margin:0;flex:none" id="aovt"> Override open time / lock</label>') +
+      '<label class="small" style="display:flex;align-items:center;gap:6px;margin:6px 0;cursor:pointer"><input type="checkbox" style="width:auto;margin:0;flex:none" id="aovl"> Override lead rule (logged)</label>' +
       '<input id="arsn" placeholder="Paperwork reason (only if their paperwork is missing; logged)" style="display:none">';
-    if (op === 'remove') html += '<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="alate"> Count as a late drop (otherwise excused)</label>';
+    if (op === 'remove') html += '<label class="small" style="display:flex;align-items:center;gap:6px;margin:6px 0;cursor:pointer"><input type="checkbox" style="width:auto;margin:0;flex:none" id="alate"> Count as a late drop (otherwise excused)</label>';
     html += '<input id="anote" placeholder="Note (optional, goes in the log' + (op === 'remove' ? ' and their email' : '') + ')">' +
       '<div style="display:flex;gap:8px;margin-top:6px"><button class="btn primary sm" id="ago">' + esc({ remove: 'Remove', move: 'Move', hand: 'Hand off', add: 'Add' }[op]) + '</button><button class="btn sm" id="ano">Cancel</button></div>' +
       '<p class="err" id="amsg"></p><p class="small muted">Stamped "Admin – ' + esc((adminSess() || {}).name || 'you') + '", logged, and emailed to the people affected.</p></div>';
@@ -522,21 +522,27 @@
       $('aq').addEventListener('change', search);
     }
     if (needSpot) {
-      call('adminHubGames', adminReq({})).then(function (g) {
-        var games = g.games.filter(function (x) { return x.state !== 'past'; });
-        return Promise.all(games.map(function (x) { return call('adminHubRoster', adminReq({ src: x.src, date: x.date })); }));
-      }).then(function (rs) {
-        var s = '<option value="">Move to…</option>';
-        rs.forEach(function (r) {
-          s += '<optgroup label="' + esc(r.name + ' · ' + r.day) + '">';
-          r.stands.forEach(function (st) { if (st.canceled) return; st.positions.forEach(function (p) {
-            var open = p.q - p.people.length;
-            s += '<option value="' + esc(r.src + '\u0001' + r.date + '\u0001' + p.task) + '"' + (open > 0 ? '' : ' disabled') + '>' + esc(p.task + ' · ' + (open > 0 ? open + ' open' : 'full')) + '</option>';
-          }); });
-          s += '</optgroup>';
-        });
-        $('aspot').innerHTML = s;
-      }).catch(function (e) { $('amsg').textContent = e.message; });
+      var spotOpts = function (r) {
+        var s = '<optgroup label="' + esc(r.name + ' · ' + r.day) + '">';
+        r.stands.forEach(function (st) { if (st.canceled) return; st.positions.forEach(function (p) {
+          var open = p.q - p.people.length;
+          s += '<option value="' + esc(r.src + '\u0001' + r.date + '\u0001' + p.task) + '"' + (open > 0 ? '' : ' disabled') + '>' + esc(p.task + ' · ' + (open > 0 ? open + ' open' : 'full')) + '</option>';
+        }); });
+        return s + '</optgroup>';
+      };
+      $('aspot').innerHTML = '<option value="">Move to…</option>' + spotOpts(ROSTER);   // this game: no extra calls
+      $('aspot').insertAdjacentHTML('afterend', '<button class="btn sm" id="aother" style="margin-bottom:6px">Show other Hub games</button>');
+      $('aother').onclick = function () {
+        var ob = this; ob.disabled = true; ob.textContent = 'Loading other games…';
+        call('adminHubGames', adminReq({})).then(function (g) {
+          var games = g.games.filter(function (x) { return x.state !== 'past' && !(x.src === ROSTER.src && x.date === ROSTER.date); });
+          return Promise.all(games.map(function (x) { return call('adminHubRoster', adminReq({ src: x.src, date: x.date })); }));
+        }).then(function (rs) {
+          var keep = $('aspot').value;
+          $('aspot').insertAdjacentHTML('beforeend', rs.map(spotOpts).join(''));
+          $('aspot').value = keep; ob.remove();
+        }).catch(function (e) { ob.disabled = false; ob.textContent = 'Show other Hub games'; $('amsg').textContent = e.message; });
+      };
     }
     $('ago').onclick = function () {
       var b = this, body = { op: op, note: $('anote').value };
