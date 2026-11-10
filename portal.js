@@ -665,14 +665,18 @@
       return qd.length >= 4 && String((x.phone || '') + ' ' + (x.parentPhone || '')).replace(/\D/g, '').indexOf(qd) >= 0;
     });
     document.getElementById('dcount').textContent = list.length + ' of ' + r.people.length + ' active volunteers';
-    var ph = function (p) {
-      if (!p) return '';
-      return esc(p) + ' · <a href="' + telLink(p) + '">Call</a> · <a href="' + telLink(p, 'sms') + '">Text</a>';
+    // Call / Text buttons like the call tree: Call solid navy, Text outlined, greyed out when there's no number
+    var acts = function (p, email) {
+      var t = telLink(p), m = telLink(p, 'sms');
+      return '<div class="dacts"><a href="' + (t || '#') + '"' + (t ? '' : ' class="off"') + '>Call</a>' +
+        '<a href="' + (m || '#') + '" class="light' + (m ? '' : ' off') + '">Text</a>' +
+        (email ? '<a href="mailto:' + esc(email) + '" class="light">Email</a>' : '') + '</div>';
     };
     document.getElementById('dlist').innerHTML = list.length ? list.map(function (x) {
       var contact = x.minor
-        ? '<div class="small"><b>Parent:</b> ' + (x.parent ? esc(x.parent) : '<span class="muted">not on file</span>') + (x.parentPhone ? '<br>' + ph(x.parentPhone) : '') + '</div>'
-        : '<div class="small">' + (x.phone ? ph(x.phone) : '<span class="muted">No phone</span>') + (x.email ? '<br><a href="mailto:' + esc(x.email) + '">' + esc(x.email) + '</a>' : '') + '</div>';
+        ? '<div class="small"><b>Parent:</b> ' + (x.parent ? esc(x.parent) : '<span class="muted">not on file</span>') + (x.parentPhone ? ' · ' + esc(x.parentPhone) : ' · <span class="muted">no phone</span>') + '</div>'
+        : '<div class="small">' + (x.phone ? esc(x.phone) : '<span class="muted">No phone</span>') + (x.email ? ' · ' + esc(x.email) : '') + '</div>';
+      var buttons = x.minor ? acts(x.parentPhone, '') : acts(x.phone, x.email);
       var pw = x.missing.length ? '<div class="small" style="color:#b45309">⚠ Missing: ' + esc(x.missing.join(', ')) + '</div>' : '<div class="small" style="color:#15803d">✓ Paperwork ready</div>';
       var permit = x.permit.length ? '<div class="small muted">Permit spots: missing ' + esc(x.permit.join(', ')) + '</div>' : '';
       var nx = x.next ? '<div class="small"><b>Next:</b> ' + esc(x.next.date) + ' · ' + esc(x.next.event) + (x.next.task ? ' · ' + esc(x.next.task) : '') + '</div>' : '<div class="small muted">No upcoming shift</div>';
@@ -680,7 +684,7 @@
       return '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;background:#fff">' +
         '<div><b>' + esc(x.first + ' ' + x.last) + '</b>' + (x.minor ? ' <span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px">MINOR</span>' : '') + '</div>' +
         '<div class="small muted">' + (x.programs ? esc(x.programs) : 'No program') + (x.students ? ' · Student: ' + esc(x.students) : '') + '</div>' +
-        contact + pw + permit + nx + gaps +
+        contact + pw + permit + nx + gaps + buttons +
         (r.admin && adminSess() ? '<button class="btn sm dopen" data-id="' + esc(x.id) + '" style="margin-top:6px">Open in admin</button>' : '') + '</div>';
     }).join('') : '<p class="muted">Nobody matches these filters.</p>';
     on('.dopen', 'click', function () { state.admin = true; adminView(this.getAttribute('data-id')); });
