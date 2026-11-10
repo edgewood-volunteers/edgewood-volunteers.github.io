@@ -13,6 +13,86 @@
   var SID = (function () { try { var x = sessionStorage.getItem('hubSid'); if (!x) { x = Math.random().toString(36).slice(2, 10); sessionStorage.setItem('hubSid', x); } return x; } catch (e) { return ''; } })();
   var ADMIN = PFX + 'hubAdmin', DIR = PFX + 'hubDir';
 
+  // ---------- look (Nov 10, 2026: app-style restyle; scoped to #hub.portal so the loader's other pages are untouched)
+  (function () {
+    if (document.getElementById('hubv2css')) return;
+    var f = document.createElement('link'); f.rel = 'stylesheet';
+    f.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap';
+    document.head.appendChild(f);
+    var P = '#hub.portal ', css = [
+      'body{background:#EEF2F7}',
+      P + '{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0F172A}',
+      P + 'header{display:block;background:#0B2545;padding:22px 18px 18px;border-radius:0 0 22px 22px}',
+      P + 'header.adminhdr{background:#7c2d12}',
+      P + '.hx-top{display:flex;justify-content:space-between;align-items:center;gap:8px}',
+      P + '.eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#F5B700;text-decoration:none}',
+      P + '.hello{font-family:"Space Grotesk",Inter,sans-serif;font-size:30px;font-weight:700;line-height:1.05;margin:10px 0 14px;color:#fff}',
+      P + '.avatar{flex:none;width:34px;height:34px;border-radius:50%;background:#F5B700;color:#0B2545;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}',
+      P + '.pills{gap:8px}',
+      P + '.pill{min-height:34px;padding:6px 15px;border:0;background:rgba(255,255,255,.14);color:#fff;font:600 14px Inter,sans-serif}',
+      P + '.pill.on{background:#fff;color:#0B2545;font-weight:700}',
+      P + '.pill.add{background:transparent;border:1px dashed rgba(255,255,255,.55)}',
+      P + '.pill.admin{background:transparent;border:1px solid #F5B700;color:#F5B700}' + P + '.pill.admin.on{background:#F5B700;color:#0B2545}',
+      P + '.card{border:0;border-radius:18px;padding:16px;margin:12px 14px;box-shadow:0 1px 2px rgba(15,23,42,.08)}',
+      P + '.card.warn{border:1px solid #fca5a5}' + P + '.card.gameday{border:1px solid #fcd34d}' + P + '.card.admincard{border:1px solid #fdba74}',
+      P + '.kicker{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#475569}',
+      P + '.status{display:flex;gap:12px;align-items:center}',
+      P + '.ico{flex:none;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center}',
+      P + '.ico.good{background:#DCFCE7}' + P + '.ico.bad{background:#FEF3C7}' + P + '.ico.wait{background:#E0E7FF}',
+      P + '.st-title{font-size:16px;font-weight:700}' + P + '.st-sub{font-size:13px;color:#475569}',
+      P + '.docs{list-style:none;margin:12px 0 0;padding:12px 0 0;border-top:1px solid #EEF2F7}',
+      P + '.docs li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;font-size:14px}',
+      P + '.docs .nm{display:flex;align-items:center;gap:8px}',
+      P + '.tagp{display:inline-block;padding:2px 8px;border-radius:99px;background:#E0E7FF;color:#1E3A8A;font-size:11px;font-weight:600}',
+      P + '.btn{min-height:44px;border-radius:12px;font:600 14px Inter,sans-serif;display:flex;align-items:center;justify-content:center;gap:6px}',
+      P + 'a.btn{display:flex;border-radius:12px;font-weight:600;min-height:44px;box-sizing:border-box}',
+      P + '.btn.primary,' + P + 'a.btn.primary{background:#0B2545;border-color:#0B2545;color:#fff}',
+      P + '.btn.sm{min-height:34px;display:inline-flex}',
+      P + '.shift{display:flex;gap:14px;align-items:center;margin-top:10px}',
+      P + '.dtile{flex:none;width:56px;height:60px;border-radius:14px;background:#0B2545;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center}',
+      P + '.dtile .dw{font-size:11px;font-weight:700;letter-spacing:.08em;color:#F5B700}',
+      P + '.dtile .dd{font-family:"Space Grotesk",Inter,sans-serif;font-size:24px;font-weight:700;line-height:1}',
+      P + '.ev{font-size:17px;font-weight:700;line-height:1.2}' + P + '.ev-sub{font-size:14px;color:#475569}',
+      P + '.lead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding:10px 12px;background:#F4F6FA;border-radius:12px;font-size:14px}',
+      P + '.lead .acts{display:flex;gap:6px}',
+      P + '.lead .acts a{min-height:34px;padding:0 14px;border-radius:99px;background:#0B2545;color:#fff;font-weight:700;font-size:13px;text-decoration:none;display:flex;align-items:center}',
+      P + '.lead .acts a.light{background:#E0E7FF;color:#1E3A8A}',
+      P + '.note{margin-top:10px;font-size:12.5px;color:#475569;line-height:1.45}',
+      P + '.hrs{display:flex;align-items:baseline;gap:6px;margin-top:6px}',
+      P + '.hrs .n{font-family:"Space Grotesk",Inter,sans-serif;font-size:38px;font-weight:700;line-height:1;color:#0B2545}',
+      P + '.bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:#E2E8F0;margin-top:12px}',
+      P + '.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:13px;color:#334155}',
+      P + '.legend span{display:flex;align-items:center;gap:6px}' + P + '.legend i{width:9px;height:9px;border-radius:2px;display:inline-block}',
+      P + '.cta{background:#0B2545;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px}',
+      P + '.cta .t{font-size:16px;font-weight:700}' + P + '.cta .s{font-size:13px;color:#CBD5E1}',
+      P + '.cta a.go{flex:none;min-height:44px;padding:0 16px;border-radius:12px;background:#F5B700;color:#0B2545;font-weight:800;font-size:14px;text-decoration:none;display:flex;align-items:center}',
+      P + '.links{padding:4px 0}',
+      P + '.links .li{display:flex;width:100%;align-items:center;justify-content:space-between;min-height:52px;padding:0 16px;box-sizing:border-box;border:0;border-top:1px solid #EEF2F7;background:none;color:#0F172A;font:600 15px Inter,sans-serif;text-decoration:none;cursor:pointer;text-align:left}',
+      P + '.links .li:first-child{border-top:0}',
+      P + '.links .li svg{flex:none}',
+      P + '.links .li .l{display:flex;align-items:center;gap:12px}',
+      P + 'footer{color:#64748B}',
+      P + 'footer a,' + P + '.center a{color:#1E3A8A}',
+      P + '.stat{background:#fff;border-radius:18px}',
+      P + '.pend{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#FEF3C7;color:#78350F;font-size:13.5px}',
+      P + '.pend .dot{flex:none;width:8px;height:8px;border-radius:50%;background:#D97706}',
+      P + '.pend .muted{color:#92400E}'
+    ].join('\n');
+    var s = document.createElement('style'); s.id = 'hubv2css'; s.textContent = css; document.head.appendChild(s);
+  })();
+  var ICON = {
+    ok: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    bad: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v8M12 18.5v.01"/></svg>',
+    wait: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E3A8A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>',
+    sOk: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    sBad: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.01"/></svg>',
+    chev: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+    clock: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B2545" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    user: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B2545" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+    mail: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B2545" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+    cal: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B2545" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>'
+  };
+
   // ---------- helpers
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
@@ -180,8 +260,10 @@
     var list = codes(), act = (activeEntry() || {}).id;
     var pills = list.map(function (x) {
       return '<button class="pill' + (x.id === act && !state.admin ? ' on' : '') + '" data-code="' + esc(x.id) + '">' + esc(x.first || (x.code ? fmtCode(x.code) : x.email)) + '</button>';
-    }).join('') + (list.length ? '<button class="pill add" id="addp" title="Add another person on this device">+</button>' : '');
-    return '<header><div><a class="title" href="' + location.pathname + '" style="color:inherit;text-decoration:none">Edgewood Volunteer Hub</a><div class="sub">' + (first ? 'Hi, ' + esc(first) : 'Volunteer pages') + '</div></div>' +
+    }).join('') + (list.length ? '<button class="pill add" id="addp" title="Add another person on this device">+ Add</button>' : '');
+    var ini = String(first || '').trim().charAt(0).toUpperCase();
+    return '<header><div class="hx-top"><a class="eyebrow" href="' + location.pathname + '">Edgewood Volunteer Hub</a>' + (ini ? '<div class="avatar" aria-hidden="true">' + esc(ini) + '</div>' : '') + '</div>' +
+      '<div class="hello">' + (first ? 'Hi, ' + esc(first) : 'Volunteer pages') + '</div>' +
       '<div class="pills">' + pills + headerRoles(isAdmin) + '</div></header>';
   }
   /** Admin / Directory buttons: only for people the Hub says are allowed (their code's People row), or who already signed in for it on this device. */
@@ -222,21 +304,26 @@
         (d.techPhone ? '<a class="btn" href="' + telLink(d.techPhone, 'sms') + '">Page not working? Text tech support (Nick)</a>' : '') + '</div>';
     });
 
-    // Paperwork
+    // Paperwork (status first: cleared / being checked / needs attention)
     var docs = me.docs || [], miss = (me.missing || []).concat(me.permitMissing || []);
     var bad = miss.length + docs.filter(function (x) { return x.fix || (x.days != null && x.days < 30); }).length;
-    out += '<div class="card"><div class="row"><b>Paperwork</b>' + (bad ? '<span class="err small">' + bad + ' need' + (bad > 1 ? '' : 's') + ' attention</span>' : '<span class="ok small">All set</span>') + '</div><ul class="list">';
+    var pend = docs.some(function (x) { return x.pending; });
+    var lastExp = docs.map(function (x) { return x.exp; }).filter(Boolean)[0] || '';
+    var stIco = bad ? 'bad' : pend ? 'wait' : 'good';
+    var stTitle = bad ? bad + (bad > 1 ? ' things need' : ' thing needs') + ' attention' : pend ? 'Paperwork received' : 'You\'re cleared to work';
+    var stSub = bad ? 'Fix these before your next shift.' : pend ? 'The liaison is checking it now.' : (lastExp ? 'Good through ' + esc(lastExp) : 'Everything is on file.');
+    out += '<div class="card"><div class="status"><div class="ico ' + stIco + '">' + ICON[stIco === 'good' ? 'ok' : stIco] + '</div>' +
+      '<div><div class="kicker">Paperwork</div><div class="st-title">' + stTitle + '</div><div class="st-sub">' + stSub + '</div></div></div><ul class="docs">';
     docs.forEach(function (x) {
       var warn = x.fix || (x.days != null && x.days < 30);
-      out += '<li><span>' + (warn ? '⚠️ ' : '✅ ') + esc(x.label) + (x.pending ? ' <em class="muted">(being checked)</em>' : '') + '</span><span class="' + (warn ? 'err' : 'muted') + ' small">' +
-        (x.fix ? 'needs a fix' : x.exp ? 'to ' + esc(x.exp) : '') + '</span></li>';
+      out += '<li><span class="nm">' + (warn ? ICON.sBad : ICON.sOk) + esc(x.label) + '</span><span>' +
+        (x.pending ? '<span class="tagp">being checked</span>' : '<span class="' + (warn ? 'err' : 'muted') + ' small">' + (x.fix ? 'needs a fix' : x.exp ? 'to ' + esc(x.exp) : '') + '</span>') + '</span></li>';
     });
-    miss.forEach(function (m) { out += '<li><span>⚠️ ' + esc(m) + '</span></li>'; });
+    miss.forEach(function (m) { out += '<li><span class="nm">' + ICON.sBad + esc(m) + '</span></li>'; });
     // Levy packet missing, needing a fix or expiring soon: offer to sign it online (needs a code on this device, not an email sign-in)
     var levyDue = miss.some(function (m) { return /levy packet/i.test(m); }) || docs.some(function (x) { return /levy packet/i.test(x.label) && !x.pending && (x.fix || (x.days != null && x.days < 30)); });
     var levyBtn = !asAdmin && !d.limited && levyDue && (activeEntry() || {}).code ? '<a class="btn primary" href="?view=levy">Sign the Levy packet online</a>' : '';
-    out += '</ul>' + levyBtn + (!asAdmin && d.links.upload ? '<a class="btn' + (bad && !levyBtn ? ' primary' : '') + '" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
-
+    out += '</ul>' + levyBtn + (!asAdmin && d.links.upload && bad ? '<a class="btn' + (!levyBtn ? ' primary' : '') + '" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
     // Spots needing names
     (d.spots || []).forEach(function (s) {
       out += '<div class="card warn"><b>' + esc(s.date) + (s.event ? ' · ' + esc(s.event) : '') + '</b><div class="small">Spots under your name still need a name for who\'s working them.</div>' +
@@ -244,33 +331,50 @@
     });
 
     // Next shift
-    out += '<div class="card"><b>Next shift</b>';
-    if (!next) out += '<p class="muted">No upcoming shifts. <a href="?view=coverage">See open spots</a>.</p>';
+    out += '<div class="card"><div class="kicker">' + (next ? 'Your next shift' : 'Shifts') + '</div>';
+    if (!next) out += '<p class="muted" style="margin:8px 0 0">No upcoming shifts yet.</p>';
     else {
-      out += '<div class="big">' + esc(next.date) + (next.event ? ' · ' + esc(next.event) : '') + '</div><div>' + esc(next.stand) + (next.start ? ' · ' + esc(next.start) + (next.end ? '–' + esc(next.end) : '') : '') + '</div>';
-      if (next.youLead) out += '<div class="small">You\'re the stand lead.</div>';
+      var nd = next.t ? new Date(next.t) : null;
+      out += '<div class="shift">' + (nd ? '<div class="dtile"><div class="dw">' + ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][nd.getDay()] + '</div><div class="dd">' + nd.getDate() + '</div></div>' : '') +
+        '<div><div class="ev">' + esc(next.event || next.date) + '</div><div class="ev-sub">' + esc(nd ? next.date : '') + (nd && next.stand ? ' · ' : '') + esc(next.stand || '') + '</div>' +
+        (next.start ? '<div class="ev-sub">' + esc(next.start) + (next.end ? ' – ' + esc(next.end) : '') + '</div>' : '') + '</div></div>';
+      if (next.youLead) out += '<div class="lead"><span><b>You\'re the stand lead.</b></span></div>';
       else if (next.lead) {
-        out += '<div class="small">Stand lead: ' + esc(next.lead);
-        if (next.leadPhone) out += ' · <a href="' + telLink(next.leadPhone) + '">Call</a> · <a href="' + telLink(next.leadPhone, 'sms') + '">Text</a>';
-        else if (next.phoneLater) out += ' <span class="muted">(call/text buttons show ' + esc(sh.showH || 48) + ' hours before)</span>';
+        out += '<div class="lead"><span><span class="muted small">Stand lead</span><br><b>' + esc(next.lead) + '</b></span>';
+        if (next.leadPhone) out += '<span class="acts"><a class="light" href="' + telLink(next.leadPhone) + '">Call</a><a href="' + telLink(next.leadPhone, 'sms') + '">Text</a></span>';
+        else if (next.phoneLater) out += '<span class="muted small" style="text-align:right">Call/text shows<br>' + esc(sh.showH || 48) + ' h before</span>';
         out += '</div>';
       }
-      if (sh.callH) out += '<div class="small muted">Running late or can\'t make it within ' + esc(sh.callH) + ' hours of your shift? Call or text your stand lead. Please clock in no more than ' + esc(sh.early || 15) + ' minutes early.</div>';
+      if (sh.callH) out += '<div class="note">Running late or can\'t make it within ' + esc(sh.callH) + ' hours of your shift? Call or text your stand lead. Please clock in no more than ' + esc(sh.early || 15) + ' minutes early.</div>';
     }
-    if (up.length || (sh.rows || []).length) out += '<button class="btn" id="cal">See all my shifts (' + up.length + ' upcoming)</button>';
+    if (up.length || (sh.rows || []).length) out += '<button class="btn" id="cal">' + ICON.cal + 'See all my shifts (' + up.length + ' upcoming)</button>';
     out += '</div>';
 
-    // Hours
+    // Open spots
+    out += '<div class="card cta"><div><div class="t">' + (next ? 'Pick up another shift' : 'Find a shift') + '</div><div class="s">Tap an open spot and you\'re on.</div></div><a class="go" href="?view=coverage">Open spots</a></div>';
+
+    // Hours, split by the student each shift credited
+    var byStud = {}, order = [];
+    (sh.rows || []).forEach(function (x) { var k = x.student || ''; if (!k) return; if (!(k in byStud)) { byStud[k] = 0; order.push(k); } byStud[k] += Number(x.hours) || 0; });
+    var tot = order.reduce(function (a, k) { return a + byStud[k]; }, 0), COL = ['#0B2545', '#F5B700', '#3B82F6', '#14B8A6', '#94A3B8'];
     var studs = (sh.students || []).map(function (s) { return esc(s.name); }).join(', ');
-    out += '<div class="grid2"><div class="stat"><div class="small muted">Hours this season</div><div class="num">' + esc(sh.hours || 0) + '</div></div>' +
-      '<div class="stat"><div class="small muted">Credited to</div><div>' + (studs || '<span class="muted">—</span>') + '</div></div></div>';
+    out += '<div class="card"><div class="row" style="margin:0"><span class="kicker">Hours this season</span><span class="small muted">' + esc(sh.shifts || 0) + ' game' + (Number(sh.shifts) === 1 ? '' : 's') + '</span></div>' +
+      '<div class="hrs"><span class="n">' + esc(sh.hours || 0) + '</span><span class="small muted" style="font-weight:600">hours</span></div>';
+    if (tot > 0) {
+      out += '<div class="bar">' + order.map(function (k, i) { return '<div style="width:' + (100 * byStud[k] / tot).toFixed(1) + '%;background:' + COL[i % COL.length] + '"></div>'; }).join('') + '</div>' +
+        '<div class="legend">' + order.map(function (k, i) { return '<span><i style="background:' + COL[i % COL.length] + '"></i>' + esc(k) + ' <b>' + esc(Math.round(byStud[k] * 100) / 100) + '</b></span>'; }).join('') + '</div>';
+    } else out += '<div class="small muted" style="margin-top:8px">Credited to: ' + (studs || '—') + (sh.unpaid ? ' · ' + esc(sh.unpaid) + ' not paid out yet' : '') + '</div>';
+    if (sh.unpaid && tot > 0) out += '<div class="small muted" style="margin-top:6px">' + esc(sh.unpaid) + ' not paid out yet</div>';
+    var pq = (sh.pending || []).concat(sh.awaiting || []), pH = pq.reduce(function (a, x) { return a + (Number(x.hours) || 0); }, 0);
+    if (pq.length) out += '<div class="pend"><span class="dot"></span><span><b>' + (pH ? esc(Math.round(pH * 100) / 100) + (Number(sh.hours) ? ' more' : '') + ' hour' + (pH === 1 ? '' : 's') : pq.length + (Number(sh.hours) ? ' more' : '') + ' shift' + (pq.length > 1 ? 's' : '')) + '</b> pending review' +
+      (pH ? ' <span class="muted">(' + pq.length + ' shift' + (pq.length > 1 ? 's' : '') + ')</span>' : '') + '</span></div>';
+    out += '</div>';
 
     // Quick links
-    out += '<div class="grid2">' +
-      '<a class="btn" href="?view=coverage">Open spots</a>' +
-      '<button class="btn" id="hist">Hours history</button>' +
-      (!asAdmin && d.links.upload ? '<a class="btn" href="' + esc(toSite(d.links.upload)) + '">Update my info</a>' : '') +
-      '<a class="btn" href="mailto:' + LIAISON + '">Contact the liaison</a></div>';
+    out += '<div class="card links">' +
+      '<button class="li" id="hist"><span class="l">' + ICON.clock + 'Hours history</span>' + ICON.chev + '</button>' +
+      (!asAdmin && d.links.upload ? '<a class="li" href="' + esc(toSite(d.links.upload)) + '"><span class="l">' + ICON.user + 'Update my info &amp; paperwork</span>' + ICON.chev + '</a>' : '') +
+      '<a class="li" href="mailto:' + LIAISON + '"><span class="l">' + ICON.mail + 'Contact the liaison</span>' + ICON.chev + '</a></div>';
 
     out += '</div>';
     if (!asAdmin) out += '<div class="center small"><a href="#" id="leave">Leave the volunteer list</a> · <a href="#" id="signout">Forget me on this device</a>' +
@@ -346,7 +450,7 @@
         '<div class="right"><b>' + esc(x.hours) + 'h</b><div class="small muted">' + esc(x.status || '') + '</div></div></div>';
     });
     (sh.pending || []).concat(sh.awaiting || []).forEach(function (x) {
-      o += '<div class="hrow"><div><b>' + esc(x.date) + '</b> ' + esc(x.event || '') + '<div class="small muted">' + esc(x.stand || '') + '</div></div><div class="right small muted">waiting for approval</div></div>';
+      o += '<div class="hrow"><div><b>' + esc(x.date) + '</b> ' + esc(x.event || '') + '<div class="small muted">' + esc(x.stand || '') + '</div></div><div class="right">' + (Number(x.hours) ? '<b>' + esc(x.hours) + 'h</b>' : '') + '<div class="small" style="color:#B45309">pending review</div></div></div>';
     });
     h(o + '</div>' + footer());
     if (!asAdmin) wireHeader(); else wireAdminBar();
