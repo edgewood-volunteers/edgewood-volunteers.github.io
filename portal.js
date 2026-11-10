@@ -212,7 +212,10 @@
         (x.fix ? 'needs a fix' : x.exp ? 'to ' + esc(x.exp) : '') + '</span></li>';
     });
     miss.forEach(function (m) { out += '<li><span>⚠️ ' + esc(m) + '</span></li>'; });
-    out += '</ul>' + (!asAdmin && d.links.upload ? '<a class="btn' + (bad ? ' primary' : '') + '" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
+    // Levy packet missing, needing a fix or expiring soon: offer to sign it online (needs a code on this device, not an email sign-in)
+    var levyDue = miss.some(function (m) { return /levy packet/i.test(m); }) || docs.some(function (x) { return /levy packet/i.test(x.label) && !x.pending && (x.fix || (x.days != null && x.days < 30)); });
+    var levyBtn = !asAdmin && !d.limited && levyDue && (activeEntry() || {}).code ? '<a class="btn primary" href="?view=levy">Sign the Levy packet online</a>' : '';
+    out += '</ul>' + levyBtn + (!asAdmin && d.links.upload ? '<a class="btn' + (bad && !levyBtn ? ' primary' : '') + '" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
 
     // Spots needing names
     (d.spots || []).forEach(function (s) {
