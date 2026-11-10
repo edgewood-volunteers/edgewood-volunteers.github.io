@@ -170,7 +170,7 @@
     var pills = list.map(function (x) {
       return '<button class="pill' + (x.id === act && !state.admin ? ' on' : '') + '" data-code="' + esc(x.id) + '">' + esc(x.first || (x.code ? fmtCode(x.code) : x.email)) + '</button>';
     }).join('') + (list.length ? '<button class="pill add" id="addp" title="Add another person on this device">+</button>' : '');
-    return '<header><div><div class="title">Edgewood Volunteer Hub</div><div class="sub">' + (first ? 'Hi, ' + esc(first) : 'Volunteer pages') + '</div></div>' +
+    return '<header><div><a class="title" href="' + location.pathname + '" style="color:inherit;text-decoration:none">Edgewood Volunteer Hub</a><div class="sub">' + (first ? 'Hi, ' + esc(first) : 'Volunteer pages') + '</div></div>' +
       '<div class="pills">' + pills + (isAdmin ? '<button class="pill admin' + (state.admin ? ' on' : '') + '" id="adm">Admin</button>' : '') + '</div></header>';
   }
   function wireHeader() {
@@ -402,7 +402,7 @@
   function adminBar() {
     var a = adminSess() || {};
     return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">' + esc(a.name || '') + ' · every lookup and change is logged</div></div>' +
-      '<div class="pills"><button class="pill" id="adms">Search</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
+      '<div class="pills"><a class="pill" href="' + location.pathname + '" style="text-decoration:none">My dashboard</a><button class="pill" id="adms">Search</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
   }
   function wireAdminBar() {
     on('#adms', 'click', adminSearch);

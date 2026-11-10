@@ -90,7 +90,7 @@
   if (!q || q === '?' || v0 === 'home' || v0 === 'leave' || v0 === 'admin') {   // the portal and the leave page are built here, not by the Hub
     var hub = document.getElementById('hub'); hub.className = 'wrap portal'; hub.innerHTML = '';
     if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') { hub.style.paddingTop = '22px'; var bar = document.createElement('div'); bar.className = 'env'; bar.textContent = window.HUB_ENV + ' – test copy, not live data'; document.body.appendChild(bar); }
-    var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=9'; document.body.appendChild(sc);
+    var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=10'; document.body.appendChild(sc);
     return;
   }
   // Any personal link with a volunteer code (?code=… on the paperwork and My shifts pages) remembers that person on
@@ -104,15 +104,24 @@
       localStorage.setItem(K, JSON.stringify(list.slice(0, 8))); localStorage.setItem(pfx + 'hubActive', JSON.stringify(c1));
     }
   } catch (e) {}
+  // Nav bar drawn on top of every Hub page, so people can always get back to their dashboard.
+  function navBar() {
+    var env = window.HUB_ENV && window.HUB_ENV !== 'LIVE', pfx = env ? 'sbx_' : '', home = location.pathname, adm = false;
+    try { var a = JSON.parse(localStorage.getItem(pfx + 'hubAdmin') || 'null'); adm = !!(a && a.session && a.expires > Date.now()); } catch (e) {}
+    var L = 'color:#fff;text-decoration:none;padding:5px 11px;border:1px solid #ffffff99;border-radius:99px;font-size:13px;white-space:nowrap';
+    var links = '<a href="' + home + '" style="' + L + ';background:#fff;color:#0b2545;font-weight:600">&larr; My dashboard</a>' +
+      (v0 !== 'coverage' ? '<a href="' + home + '?view=coverage" style="' + L + '">Open spots</a>' : '') +
+      (adm ? '<a href="' + home + '?view=admin" style="' + L + ';border-color:#fbbf24;color:#fbbf24">Admin</a>' : '');
+    return '<nav id="hubnav" style="position:sticky;top:0;z-index:99999;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 12px;background:#0b2545;font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 1px 3px #0003">' +
+      links + (env ? '<span style="margin-left:auto;background:#b45309;color:#fff;font-size:12px;padding:3px 8px;border-radius:6px">' + window.HUB_ENV + ' – test copy</span>' : '') + '</nav>';
+  }
   var url = window.HUB_API + q + (q.indexOf('?') === 0 ? '&' : '?') + 'raw=1';
   fetch(url).then(function (r) {
     if (!r.ok) throw new Error('status ' + r.status);
     return r.text();
   }).then(function (html) {
     if (!html || html.length < 50) throw new Error('empty page');
-    if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') {
-      html = html.replace(/<body([^>]*)>/i, '<body$1><div style="position:fixed;top:0;left:0;right:0;background:#b45309;color:#fff;font:12px system-ui;padding:3px;text-align:center;z-index:99999">' + window.HUB_ENV + ' – test copy, not live data</div>');
-    }
+    html = html.replace(/<body([^>]*)>/i, function (m) { return m + navBar(); });
     document.open(); document.write(html); document.close();
   }).catch(function (e) {
     spin.style.display = 'none';
