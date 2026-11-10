@@ -415,8 +415,10 @@
   }
   function adminSearch() {
     h(adminBar() + '<div class="cols"><div class="card"><h2>Look up a volunteer</h2><input id="q" placeholder="Name, email, or phone number"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' +
-      '<div class="card"><h2>Stands (last 3 days)</h2><div id="stands"><div class="spin"></div></div></div></div>' + footer());
+      '<div class="card"><h2>Stands (last 3 days)</h2><div id="stands"><div class="spin"></div></div></div>' +
+      '<div class="card wide"><h2>Hub games</h2><p class="small muted">Rosters: move, remove, add or hand off. Every change is stamped and logged.</p><div id="hubgames"><div class="spin"></div></div></div></div>' + footer());
     wireAdminBar();
+    adminHubList();
     call('adminStands', adminReq({})).then(function (r) {
       var el = document.getElementById('stands'); if (!el) return;
       if (!r.stands.length) { el.innerHTML = '<p class="muted">No stands today or in the last 2 days.</p>'; return; }
@@ -442,6 +444,122 @@
     };
     on('#go', 'click', go); on('#q', 'keydown', function (e) { if (e.key === 'Enter') go(); });
   }
+  // ---------- admin: Hub game rosters (section 24d on the Hub). Move / Remove / Add / Hand off; every action is stamped and logged.
+  function adminHubList() {
+    var el = document.getElementById('hubgames'); if (!el) return;
+    call('adminHubGames', adminReq({})).then(function (r) {
+      if (!r.games.length) { el.innerHTML = '<p class="muted">No upcoming Hub games.</p>'; return; }
+      el.innerHTML = r.games.map(function (g) {
+        return '<div class="hrow"><span><b>' + esc(g.name) + '</b><div class="small muted">' + esc(g.day) + ' · ' + g.f + ' of ' + g.q + ' filled · ' +
+          ({ open: 'open', locked: 'locked', notyet: 'not open yet' }[g.state] || g.state) + (g.canceled ? ' · ' + g.canceled + ' stand(s) canceled' : '') + '</div></span>' +
+          '<button class="btn sm rost" data-src="' + esc(g.src) + '" data-date="' + esc(g.date) + '">Roster</button></div>';
+      }).join('');
+      on('.rost', 'click', function () { adminRoster(this.getAttribute('data-src'), this.getAttribute('data-date')); });
+    }).catch(function (e) { if (/expired|sign in with google/i.test(e.message)) return adminFail(e); el.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
+  }
+  var ROSTER = null;
+  function adminRoster(src, date, flash) {
+    state.page = 'Portal admin roster'; spinner('Loading roster…');
+    call('adminHubRoster', adminReq({ src: src, date: date })).then(function (r) {
+      ROSTER = r;
+      var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>' + esc(r.name) + ' · ' + esc(r.day) + '</b><span class="small muted">' +
+        ({ open: 'Open', locked: 'Locked', notyet: 'Not open yet' }[r.state] || r.state) + '</span></div>' + (r.lockLabel ? '<p class="small muted">Sign-up closes ' + esc(r.lockLabel) + '</p>' : '') +
+        (flash ? '<p class="ok" style="color:#1e7e34;font-weight:bold">' + esc(flash) + '</p>' : '') + '<div id="act"></div></div>';
+      r.stands.forEach(function (st) {
+        o += '<div class="card"><h2>' + esc(st.code) + (st.canceled ? ' <span class="err">canceled' + (st.why ? ': ' + esc(st.why) : '') + '</span>' : '') + '</h2>';
+        st.positions.forEach(function (p) {
+          o += '<div style="margin:10px 0 4px"><b>' + esc(p.task.replace(/^\([^)]*\)\s*/, '')) + '</b> <span class="small muted">' + esc(p.time) + ' · ' + p.people.length + ' of ' + p.q +
+            (p.permit ? ' · permit' : '') + (p.lead ? ' · lead' : '') + '</span></div>';
+          p.people.forEach(function (x) {
+            o += '<div class="hrow"><span>' + esc(x.name) + (x.minor ? ' <span class="small muted">(minor)</span>' : '') +
+              '<div class="small muted">' + (x.phone ? '<a href="' + telLink(x.phone) + '">' + esc(x.phone) + '</a> · ' : '') + esc(x.credit || 'credit on file') + (x.program ? ' · ' + esc(x.program) : '') +
+              (x.hand ? ' · handing off to ' + esc(x.hand) : '') + (x.by ? ' · by ' + esc(x.by) : '') + '</div></span>' +
+              (st.canceled ? '' : '<span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sm rop" data-op="move" data-key="' + esc(x.key) + '" data-name="' + esc(x.name) + '">Move</button>' +
+              '<button class="btn sm rop" data-op="hand" data-key="' + esc(x.key) + '" data-name="' + esc(x.name) + '">Hand off</button>' +
+              '<button class="btn sm rop" data-op="remove" data-key="' + esc(x.key) + '" data-name="' + esc(x.name) + '">Remove</button></span>') + '</div>';
+          });
+          if (p.wait.length) o += '<div class="small muted">Waitlist: ' + p.wait.map(esc).join(', ') + '</div>';
+          if (!st.canceled) o += '<button class="btn sm rop" data-op="add" data-task="' + esc(p.task) + '" style="margin-top:4px">+ Add someone</button>';
+        });
+        o += '</div>';
+      });
+      h(o + footer()); wireAdminBar();
+      on('#rback', 'click', adminSearch);
+      on('.rop', 'click', function () { adminAct(this.getAttribute('data-op'), this.getAttribute('data-key'), this.getAttribute('data-name'), this.getAttribute('data-task')); });
+    }).catch(adminFail);
+  }
+  /** The action panel at the top of the roster. */
+  function adminAct(op, key, name, task) {
+    var box = document.getElementById('act'), pick = { pid: '', label: '' }, targets = [];
+    var title = { remove: 'Remove ' + name, move: 'Move ' + name, hand: 'Hand off ' + name + '\'s spot', add: 'Add someone to ' + (task || '').replace(/^\([^)]*\)\s*/, '') + ' (' + standOf(task) + ')' }[op];
+    var needPerson = op === 'add' || op === 'hand', needSpot = op === 'move', overrides = op !== 'remove';
+    var html = '<div style="border:1px solid #c7d2fe;background:#eef2ff;border-radius:10px;padding:10px;margin-top:8px"><b>' + esc(title) + '</b>';
+    if (needPerson) html += '<input id="aq" placeholder="Search name, email or phone"><div id="ares"></div><div id="apick" class="small"></div>';
+    if (needSpot) html += '<select id="aspot" style="width:100%;padding:8px;margin:6px 0"><option value="">Loading positions…</option></select>';
+    if (op === 'add' || op === 'hand') html += '<select id="acr" style="width:100%;padding:8px;margin:6px 0"><option value="">Credit: their student on file</option><option value="General fund">Credit: General fund</option></select>';
+    if (overrides) html += (op === 'hand' ? '' : '<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="aovt"> Override open time / lock</label>') +
+      '<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="aovl"> Override lead rule (logged)</label>' +
+      '<input id="arsn" placeholder="Paperwork reason (only if their paperwork is missing; logged)" style="display:none">';
+    if (op === 'remove') html += '<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="alate"> Count as a late drop (otherwise excused)</label>';
+    html += '<input id="anote" placeholder="Note (optional, goes in the log' + (op === 'remove' ? ' and their email' : '') + ')">' +
+      '<div style="display:flex;gap:8px;margin-top:6px"><button class="btn primary sm" id="ago">' + esc({ remove: 'Remove', move: 'Move', hand: 'Hand off', add: 'Add' }[op]) + '</button><button class="btn sm" id="ano">Cancel</button></div>' +
+      '<p class="err" id="amsg"></p><p class="small muted">Stamped "Admin – ' + esc((adminSess() || {}).name || 'you') + '", logged, and emailed to the people affected.</p></div>';
+    box.innerHTML = html; box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    var $ = function (id) { return document.getElementById(id); };
+    $('ano').onclick = function () { box.innerHTML = ''; };
+    if (needPerson) {
+      var search = function () {
+        var q = $('aq').value.trim(); if (q.length < 3) return;
+        $('ares').innerHTML = '<div class="spin"></div>';
+        call('adminSearch', adminReq({ q: q })).then(function (r) {
+          $('ares').innerHTML = r.hits.slice(0, 8).map(function (x) {
+            return '<button class="hit ahit" data-id="' + esc(x.personId) + '" data-n="' + esc(x.name) + '"><b>' + esc(x.name) + '</b>' + (x.minor ? ' <span class="small muted">(minor)</span>' : '') + '<div class="small muted">' + esc(x.email) + ' · ' + esc(x.status) + '</div></button>';
+          }).join('') || '<p class="muted small">No matches.</p>';
+          Array.prototype.forEach.call(box.querySelectorAll('.ahit'), function (b) { b.onclick = function () { pick = { pid: b.getAttribute('data-id'), label: b.getAttribute('data-n') }; $('ares').innerHTML = ''; $('apick').innerHTML = 'Picked: <b>' + esc(pick.label) + '</b>'; }; });
+        }).catch(function (e) { $('ares').innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
+      };
+      $('aq').addEventListener('keydown', function (e) { if (e.key === 'Enter') search(); });
+      $('aq').addEventListener('change', search);
+    }
+    if (needSpot) {
+      call('adminHubGames', adminReq({})).then(function (g) {
+        var games = g.games.filter(function (x) { return x.state !== 'past'; });
+        return Promise.all(games.map(function (x) { return call('adminHubRoster', adminReq({ src: x.src, date: x.date })); }));
+      }).then(function (rs) {
+        var s = '<option value="">Move to…</option>';
+        rs.forEach(function (r) {
+          s += '<optgroup label="' + esc(r.name + ' · ' + r.day) + '">';
+          r.stands.forEach(function (st) { if (st.canceled) return; st.positions.forEach(function (p) {
+            var open = p.q - p.people.length;
+            s += '<option value="' + esc(r.src + '\u0001' + r.date + '\u0001' + p.task) + '"' + (open > 0 ? '' : ' disabled') + '>' + esc(p.task + ' · ' + (open > 0 ? open + ' open' : 'full')) + '</option>';
+          }); });
+          s += '</optgroup>';
+        });
+        $('aspot').innerHTML = s;
+      }).catch(function (e) { $('amsg').textContent = e.message; });
+    }
+    $('ago').onclick = function () {
+      var b = this, body = { op: op, note: $('anote').value };
+      if (key) body.key = key;
+      if (needPerson) { if (!pick.pid) { $('amsg').textContent = 'Search for and pick a volunteer.'; return; } body.pid = pick.pid; }
+      if (op === 'add') { body.src = ROSTER.src; body.date = ROSTER.date; body.task = task; }
+      if (needSpot) { var v = $('aspot').value; if (!v) { $('amsg').textContent = 'Pick where to move them.'; return; } v = v.split('\u0001'); body.src = v[0]; body.date = v[1]; body.task = v[2]; }
+      if ($('acr')) body.credit = $('acr').value;
+      if ($('aovt')) body.ovTime = $('aovt').checked;
+      if ($('aovl')) body.ovLead = $('aovl').checked;
+      if ($('arsn')) body.reason = $('arsn').value;
+      if ($('alate')) body.late = $('alate').checked;
+      b.disabled = true; b.textContent = 'Saving…'; $('amsg').textContent = '';
+      call('adminHubDo', adminReq(body)).then(function (r) { adminRoster(ROSTER.src, ROSTER.date, r.text); })
+        .catch(function (e) {
+          b.disabled = false; b.textContent = { remove: 'Remove', move: 'Move', hand: 'Hand off', add: 'Add' }[op];
+          if (/expired|sign in with google/i.test(e.message)) return adminFail(e);
+          $('amsg').textContent = e.message;
+          if (/Type a reason/.test(e.message) && $('arsn')) { $('arsn').style.display = ''; $('arsn').focus(); }
+        });
+    };
+  }
+  function standOf(task) { var m = String(task || '').match(/^\(([^)]+)\)/); return m ? m[1] : ''; }
   function adminView(pid) {
     spinner('Loading volunteer…');
     call('adminView', adminReq({ personId: pid })).then(function (d) { state.adminData = d; renderHome(d, true); }).catch(adminFail);
