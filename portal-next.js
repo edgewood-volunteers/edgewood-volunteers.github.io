@@ -306,6 +306,9 @@
 
     // Paperwork (status first: cleared / being checked / needs attention)
     var docs = me.docs || [], miss = (me.missing || []).concat(me.permitMissing || []);
+    // A document already shown as "needs a fix" also comes back as "<label> needs to be redone": count and show it once
+    var fixed = docs.filter(function (x) { return x.fix; }).map(function (x) { return String(x.label || '').toLowerCase(); });
+    miss = miss.filter(function (m) { var t = String(m).toLowerCase(); return !fixed.some(function (l) { return l && t.indexOf(l) === 0 && /redone|fix/.test(t); }); });
     var bad = miss.length + docs.filter(function (x) { return x.fix || (x.days != null && x.days < 30); }).length;
     var pend = docs.some(function (x) { return x.pending; });
     var lastExp = docs.map(function (x) { return x.exp; }).filter(Boolean)[0] || '';
