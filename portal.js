@@ -46,6 +46,13 @@
     });
   }
   function h(html) { root.innerHTML = html; window.scrollTo(0, 0); if (typeof wireFooter === 'function') wireFooter(); }
+  /** Button shows a small spinner and a working label while a request runs; returns a function that puts it back. */
+  function busy(btn, label) {
+    if (!btn) return function () {};
+    var html = btn.innerHTML; btn.disabled = true;
+    btn.innerHTML = '<span class="bspin"></span>' + esc(label || 'Opening your page…');
+    return function () { btn.disabled = false; btn.innerHTML = html; };
+  }
   function spinner(msg) { h('<div class="card center"><div class="spin"></div><p class="muted">' + esc(msg || 'Loading…') + '</p></div>'); }
   function on(sel, ev, fn) { Array.prototype.forEach.call(root.querySelectorAll(sel), function (el) { el.addEventListener(ev, fn); }); }
   function telLink(p, kind) { var d = String(p || '').replace(/[^\d+]/g, ''); return d ? (kind === 'sms' ? 'sms:' : 'tel:') + d : ''; }
@@ -93,20 +100,22 @@
       '<button class="btn primary" id="go">Open my page</button><p class="err" id="msg"></p></div>' +
       '<div class="card"><a class="btn" href="?view=coverage">See open spots</a></div>' + footer());
     var go = function () {
-      var raw = document.getElementById('code').value.trim(), msg = document.getElementById('msg');
+      var raw = document.getElementById('code').value.trim(), msg = document.getElementById('msg'), btn = document.getElementById('go');
       msg.textContent = '';
+      if (btn.disabled) return;   // already working (Enter pressed twice)
       if (/@/.test(raw)) {
-        var em = raw.toLowerCase();
+        var em = raw.toLowerCase(), undo = busy(btn);
         call('portal', { email: em }).then(function (d) {
           if (d.pick) return pickPerson(em, d.pick);
           saveEntry({ email: em, personId: d.me.personId, first: d.me.first, limited: true }); state.data = d; renderHome(d, false);
-        }).catch(function (e) { msg.textContent = e.message; });
+        }).catch(function (e) { undo(); msg.textContent = e.message; });
         return;
       }
       var c = normCode(raw);
       if (c.length < 6) { msg.textContent = 'Enter your email address, or the 8-letter code from your Hub email.'; return; }
+      var undo2 = busy(btn);
       call('portal', { code: c }).then(function (d) { saveCode(c, d.me.first, d.me.personId); state.data = d; renderHome(d, false); })
-        .catch(function (e) { msg.textContent = e.message; });
+        .catch(function (e) { undo2(); msg.textContent = e.message; });
     };
     on('#go', 'click', go);
     on('#code', 'keydown', function (e) { if (e.key === 'Enter') go(); });
@@ -147,8 +156,9 @@
     var go = function () {
       var c = normCode(document.getElementById('lcode').value), msg = document.getElementById('msg'); msg.textContent = '';
       if (c.length < 6) { msg.textContent = 'Enter the 8-letter code from your Hub email.'; return; }
+      var lb = document.getElementById('link'); if (lb.disabled) return; var undo = busy(lb, 'Linking…');
       call('portalGoogleLink', { credential: cred, code: c }).then(function (p) { saveCode(p.code, p.first, p.personId); home(); })
-        .catch(function (e) { msg.textContent = /confirm that sign-in/i.test(e.message) ? 'Your Google sign-in timed out. Tap Back and sign in with Google again.' : e.message; });
+        .catch(function (e) { undo(); msg.textContent = /confirm that sign-in/i.test(e.message) ? 'Your Google sign-in timed out. Tap Back and sign in with Google again.' : e.message; });
     };
     on('#link', 'click', go); on('#lcode', 'keydown', function (e) { if (e.key === 'Enter') go(); });
     on('#back', 'click', function (e) { e.preventDefault(); signIn(); });
@@ -158,10 +168,10 @@
     h(header('', false) + '<div class="card"><h2>Who are you?</h2><p class="muted">More than one volunteer uses this email.</p>' +
       list.map(function (p) { return '<button class="btn" data-pid="' + esc(p.personId) + '">' + esc(p.first) + '</button>'; }).join('') + '<p class="err" id="msg"></p></div>' + footer());
     on('[data-pid]', 'click', function () {
-      var pid = this.getAttribute('data-pid');
+      var pid = this.getAttribute('data-pid'); if (this.disabled) return; var undo = busy(this);
       call('portal', { email: email, personId: pid }).then(function (d) {
         saveEntry({ email: email, personId: pid, first: d.me.first, limited: true }); state.data = d; renderHome(d, false);
-      }).catch(function (e) { document.getElementById('msg').textContent = e.message; });
+      }).catch(function (e) { undo(); document.getElementById('msg').textContent = e.message; });
     });
   }
 
