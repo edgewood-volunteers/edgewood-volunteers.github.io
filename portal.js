@@ -11,7 +11,7 @@
   var KEY = PFX + 'hubCodes', ACTIVE = PFX + 'hubActive';
   var state = { data: null, admin: false, adminData: null, view: 'home', cal: null, page: 'Portal' };
   var SID = (function () { try { var x = sessionStorage.getItem('hubSid'); if (!x) { x = Math.random().toString(36).slice(2, 10); sessionStorage.setItem('hubSid', x); } return x; } catch (e) { return ''; } })();
-  var ADMIN = PFX + 'hubAdmin';
+  var ADMIN = PFX + 'hubAdmin', DIR = PFX + 'hubDir';
 
   // ---------- helpers
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -68,6 +68,7 @@
     if (adminSess()) { state.admin = true; return p0 ? adminView(p0) : adminSearch(); }
     return adminStart();
   }
+  if (view === 'directory') { history.replaceState(null, '', location.pathname + '?view=directory'); return dirStart(); }   // section 26 on the Hub
   if (qs.get('code') && view === 'home') {   // a personal portal link: remember the code on this device, then clean the address bar
     var c0 = normCode(qs.get('code')); if (c0.length >= 6) saveCode(c0, '');
     history.replaceState(null, '', location.pathname);
@@ -193,9 +194,12 @@
     return '<footer>' + (help ? '<a href="' + esc(help) + '" target="_blank" rel="noopener">Help and how-to guides</a><br>' : '') +
       'Questions about shifts, stands or paperwork: <a href="mailto:' + LIAISON + '">email the IU liaison</a>.<br>' +
       'Website or technical problems: <a href="mailto:' + TECH + '">Nick Ely, tech support</a>.<br>' +
-      '<a href="#" id="admLogin">Admin sign-in</a> · © 2026 NE Prints &amp; Design, LLC' + (ENV !== 'LIVE' ? ' · ' + esc(ENV) : '') + '</footer>';
+      '<a href="#" id="admLogin">Admin sign-in</a> · <a href="#" id="dirLogin">Volunteer directory</a> · © 2026 NE Prints &amp; Design, LLC' + (ENV !== 'LIVE' ? ' · ' + esc(ENV) : '') + '</footer>';
   }
-  function wireFooter() { on('#admLogin', 'click', function (e) { e.preventDefault(); adminStart(); }); }
+  function wireFooter() {
+    on('#admLogin', 'click', function (e) { e.preventDefault(); adminStart(); });
+    on('#dirLogin', 'click', function (e) { e.preventDefault(); dirStart(); });
+  }
 
   function renderHome(d, asAdmin) {
     var me = d.me, sh = d.shifts || {}, up = sh.upcoming || [], next = up[0];
@@ -415,10 +419,11 @@
   function adminBar() {
     var a = adminSess() || {};
     return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">' + esc(a.name || '') + ' · every lookup and change is logged</div></div>' +
-      '<div class="pills"><a class="pill" href="' + location.pathname + '" style="text-decoration:none">My dashboard</a><button class="pill" id="adms">Search</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
+      '<div class="pills"><a class="pill" href="' + location.pathname + '" style="text-decoration:none">My dashboard</a><button class="pill" id="adms">Search</button><button class="pill" id="admd">Directory</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
   }
   function wireAdminBar() {
     on('#adms', 'click', adminSearch);
+    on('#admd', 'click', function () { dirView(); });
     on('#admx', 'click', function () { state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home(); });
     on('#admo', 'click', function () {
       var a = adminSess(); try { localStorage.removeItem(ADMIN); } catch (x) {}
@@ -579,6 +584,108 @@
     };
   }
   function standOf(task) { var m = String(task || '').match(/^\(([^)]+)\)/); return m ? m[1] : ''; }
+  // ---------- volunteer directory (section 26 on the Hub). Admins, plus Lists › Directory access. Google sign-in only. Read only.
+  function dirSess() { var a = adminSess(); if (a) return a; var x = store(DIR); return x && x.session && x.expires > Date.now() ? x : null; }
+  function dirStart(note) {
+    state.page = 'Directory';
+    if (dirSess()) return dirView();
+    var cid = window.HUB_GOOGLE_CLIENT_ID;
+    h(header('', false) + '<div class="card"><h2>Volunteer directory</h2><p class="muted">For chairs and admins. Sign in with the Google account on the Directory access list.</p>' +
+      (note ? '<p class="err">' + esc(note) + '</p>' : '') + (cid ? '<div id="gbtn"></div>' : '<p class="err">Sign-in is not set up yet.</p>') +
+      '<p class="err" id="msg"></p><button class="btn" id="cancelDir">Cancel</button></div>' + footer());
+    on('#cancelDir', 'click', function () { history.replaceState(null, '', location.pathname); state.data ? renderHome(state.data, false) : home(); });
+    if (!cid) return;
+    gsi('gbtn', function (cred) {
+      spinner('Signing you in with Google…');
+      call('dirGoogle', { credential: cred }).then(function (a) { store(DIR, a); dirView(); }).catch(function (e) { dirStart(e.message); });
+    });
+  }
+  function dirView() {
+    var s = dirSess(); if (!s) return dirStart();
+    state.page = 'Directory'; spinner('Loading the directory…');
+    call('directory', { adminSession: s.session }).then(function (r) { state.dir = r; state.dirF = state.dirF || {}; dirRender(); })
+      .catch(function (e) {
+        if (/expired|sign in with google/i.test(e.message)) { try { localStorage.removeItem(DIR); } catch (x) {} if (!adminSess()) return dirStart('Your sign-in expired. Sign in again.'); return adminFail(e); }
+        h(dirBar() + '<div class="card"><p class="err">' + esc(e.message) + '</p></div>' + footer()); wireDirBar();
+      });
+  }
+  function dirBar() {
+    if (adminSess()) { state.admin = true; return adminBar(); }
+    var a = dirSess() || {};
+    return '<header class="adminhdr"><div><div class="title">Volunteer directory</div><div class="sub">' + esc(a.name || '') + ' · every open is logged</div></div>' +
+      '<div class="pills"><a class="pill" href="' + location.pathname + '" style="text-decoration:none">My dashboard</a><button class="pill" id="diro">Sign out</button></div></header>';
+  }
+  function wireDirBar() {
+    if (adminSess()) return wireAdminBar();
+    on('#diro', 'click', function () {
+      var a = store(DIR); try { localStorage.removeItem(DIR); } catch (x) {}
+      if (a && a.session) call('adminSignOut', { adminSession: a.session }).catch(function () {});
+      history.replaceState(null, '', location.pathname); state.data ? renderHome(state.data, false) : home();
+    });
+  }
+  function dirProgs(x) { return String(x.programs || '').split(/\s*[;,]\s*/).filter(String); }
+  function dirRender() {
+    var r = state.dir, f = state.dirF, progs = {};
+    r.people.forEach(function (x) { dirProgs(x).forEach(function (g) { progs[g] = 1; }); });
+    var opt = function (v, t, cur) { return '<option value="' + esc(v) + '"' + (cur === v ? ' selected' : '') + '>' + esc(t) + '</option>'; };
+    var sel = 'style="width:auto;display:inline-block;margin:4px 6px 4px 0;padding:8px"';
+    h(dirBar() + '<div class="card wide"><h2>Volunteer directory</h2>' +
+      '<p class="small muted">Active volunteers only. Minors show their parent or guardian contact. Every open is logged.</p>' +
+      '<input id="dq" placeholder="Search name, email, phone, student or parent" value="' + esc(f.q || '') + '">' +
+      '<div><select id="dprog" ' + sel + '>' + opt('', 'All programs', f.prog || '') + Object.keys(progs).sort().map(function (g) { return opt(g, g, f.prog || ''); }).join('') + '</select>' +
+      '<select id="dminor" ' + sel + '>' + opt('', 'Adults and minors', f.minor || '') + opt('adult', 'Adults only', f.minor || '') + opt('minor', 'Minors only', f.minor || '') + '</select>' +
+      '<select id="dpw" ' + sel + '>' + opt('', 'Any paperwork', f.pw || '') + opt('ready', 'Paperwork ready', f.pw || '') + opt('missing', 'Paperwork missing', f.pw || '') + opt('permit', 'Permit missing', f.pw || '') + '</select>' +
+      '<select id="dshift" ' + sel + '>' + opt('', 'Any shifts', f.shift || '') + opt('yes', 'Has an upcoming shift', f.shift || '') + opt('no', 'No upcoming shift', f.shift || '') + '</select>' +
+      '<label class="small" style="white-space:nowrap"><input type="checkbox" id="dgaps" style="width:auto;margin-right:4px"' + (f.gaps ? ' checked' : '') + '>Missing contact info</label></div>' +
+      '<p class="small muted" id="dcount"></p><div id="dlist" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px"></div></div>' + footer());
+    wireDirBar();
+    var upd = function () {
+      f.q = document.getElementById('dq').value; f.prog = document.getElementById('dprog').value; f.minor = document.getElementById('dminor').value;
+      f.pw = document.getElementById('dpw').value; f.shift = document.getElementById('dshift').value; f.gaps = document.getElementById('dgaps').checked;
+      dirList();
+    };
+    on('#dq', 'input', upd); on('#dprog,#dminor,#dpw,#dshift,#dgaps', 'change', upd);
+    dirList();
+  }
+  function dirList() {
+    var r = state.dir, f = state.dirF, q = String(f.q || '').toLowerCase().trim(), qd = q.replace(/\D/g, '');
+    var list = r.people.filter(function (x) {
+      if (f.prog && dirProgs(x).indexOf(f.prog) < 0) return false;
+      if (f.minor === 'adult' && x.minor) return false;
+      if (f.minor === 'minor' && !x.minor) return false;
+      if (f.pw === 'ready' && x.missing.length) return false;
+      if (f.pw === 'missing' && !x.missing.length) return false;
+      if (f.pw === 'permit' && !x.permit.length) return false;
+      if (f.shift === 'yes' && !x.next) return false;
+      if (f.shift === 'no' && x.next) return false;
+      if (f.gaps && !x.gaps.length) return false;
+      if (!q) return true;
+      var hay = [x.first, x.last, x.email, x.parent, x.students, x.programs].join(' ').toLowerCase();
+      if (q.split(/\s+/).every(function (w) { return hay.indexOf(w) >= 0; })) return true;
+      return qd.length >= 4 && String((x.phone || '') + ' ' + (x.parentPhone || '')).replace(/\D/g, '').indexOf(qd) >= 0;
+    });
+    document.getElementById('dcount').textContent = list.length + ' of ' + r.people.length + ' active volunteers';
+    var ph = function (p) {
+      if (!p) return '';
+      return esc(p) + ' · <a href="' + telLink(p) + '">Call</a> · <a href="' + telLink(p, 'sms') + '">Text</a>';
+    };
+    document.getElementById('dlist').innerHTML = list.length ? list.map(function (x) {
+      var contact = x.minor
+        ? '<div class="small"><b>Parent:</b> ' + (x.parent ? esc(x.parent) : '<span class="muted">not on file</span>') + (x.parentPhone ? '<br>' + ph(x.parentPhone) : '') + '</div>'
+        : '<div class="small">' + (x.phone ? ph(x.phone) : '<span class="muted">No phone</span>') + (x.email ? '<br><a href="mailto:' + esc(x.email) + '">' + esc(x.email) + '</a>' : '') + '</div>';
+      var pw = x.missing.length ? '<div class="small" style="color:#b45309">⚠ Missing: ' + esc(x.missing.join(', ')) + '</div>' : '<div class="small" style="color:#15803d">✓ Paperwork ready</div>';
+      var permit = x.permit.length ? '<div class="small muted">Permit spots: missing ' + esc(x.permit.join(', ')) + '</div>' : '';
+      var nx = x.next ? '<div class="small"><b>Next:</b> ' + esc(x.next.date) + ' · ' + esc(x.next.event) + (x.next.task ? ' · ' + esc(x.next.task) : '') + '</div>' : '<div class="small muted">No upcoming shift</div>';
+      var gaps = x.gaps.length ? '<div class="small muted">Needs: ' + esc(x.gaps.join(', ')) + '</div>' : '';
+      return '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;background:#fff">' +
+        '<div><b>' + esc(x.first + ' ' + x.last) + '</b>' + (x.minor ? ' <span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px">MINOR</span>' : '') + '</div>' +
+        '<div class="small muted">' + (x.programs ? esc(x.programs) : 'No program') + (x.students ? ' · Student: ' + esc(x.students) : '') + '</div>' +
+        contact + pw + permit + nx + gaps +
+        (r.admin && adminSess() ? '<button class="btn sm dopen" data-id="' + esc(x.id) + '" style="margin-top:6px">Open in admin</button>' : '') + '</div>';
+    }).join('') : '<p class="muted">Nobody matches these filters.</p>';
+    on('.dopen', 'click', function () { state.admin = true; adminView(this.getAttribute('data-id')); });
+  }
+
   function adminView(pid) {
     spinner('Loading volunteer…');
     call('adminView', adminReq({ personId: pid })).then(function (d) { state.adminData = d; renderHome(d, true); }).catch(adminFail);
