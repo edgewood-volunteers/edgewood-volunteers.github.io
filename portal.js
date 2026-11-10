@@ -182,23 +182,29 @@
       return '<button class="pill' + (x.id === act && !state.admin ? ' on' : '') + '" data-code="' + esc(x.id) + '">' + esc(x.first || (x.code ? fmtCode(x.code) : x.email)) + '</button>';
     }).join('') + (list.length ? '<button class="pill add" id="addp" title="Add another person on this device">+</button>' : '');
     return '<header><div><a class="title" href="' + location.pathname + '" style="color:inherit;text-decoration:none">Edgewood Volunteer Hub</a><div class="sub">' + (first ? 'Hi, ' + esc(first) : 'Volunteer pages') + '</div></div>' +
-      '<div class="pills">' + pills + (isAdmin ? '<button class="pill admin' + (state.admin ? ' on' : '') + '" id="adm">Admin</button>' : '') + '</div></header>';
+      '<div class="pills">' + pills + headerRoles(isAdmin) + '</div></header>';
+  }
+  /** Admin / Directory buttons: only for people the Hub says are allowed (their code's People row), or who already signed in for it on this device. */
+  function headerRoles(isAdmin) {
+    var d = state.data || {}, full = d && !d.limited;
+    var adm = (isAdmin && full) || !!adminSess(), dir = adm || (full && d.isDir) || !!dirSess();
+    return (adm ? '<button class="pill admin' + (state.admin ? ' on' : '') + '" id="adm">Admin</button>' : '') +
+      (dir ? '<button class="pill admin" id="dirp">Directory</button>' : '');
   }
   function wireHeader() {
     on('.pill[data-code]', 'click', function () { state.admin = false; store(ACTIVE, this.getAttribute('data-code')); home(); });
     on('#addp', 'click', function () { state.admin = false; signIn(); });
     on('#adm', 'click', function () { if (state.admin) { state.admin = false; renderHome(state.data, false); } else adminStart(); });
+    on('#dirp', 'click', function () { dirStart(); });
   }
   function footer() {
     var help = (state.data && state.data.help) || window.HUB_HELP || '';
     return '<footer>' + (help ? '<a href="' + esc(help) + '" target="_blank" rel="noopener">Help and how-to guides</a><br>' : '') +
       'Questions about shifts, stands or paperwork: <a href="mailto:' + LIAISON + '">email the IU liaison</a>.<br>' +
       'Website or technical problems: <a href="mailto:' + TECH + '">Nick Ely, tech support</a>.<br>' +
-      '<a href="#" id="admLogin">Admin sign-in</a> · <a href="#" id="dirLogin">Volunteer directory</a> · © 2026 NE Prints &amp; Design, LLC' + (ENV !== 'LIVE' ? ' · ' + esc(ENV) : '') + '</footer>';
+      '© 2026 NE Prints &amp; Design, LLC' + (ENV !== 'LIVE' ? ' · ' + esc(ENV) : '') + '</footer>';
   }
   function wireFooter() {
-    on('#admLogin', 'click', function (e) { e.preventDefault(); adminStart(); });
-    on('#dirLogin', 'click', function (e) { e.preventDefault(); dirStart(); });
   }
 
   function renderHome(d, asAdmin) {
