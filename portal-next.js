@@ -326,7 +326,10 @@
     // Levy packet missing, needing a fix or expiring soon: offer to sign it online (needs a code on this device, not an email sign-in)
     var levyDue = miss.some(function (m) { return /levy packet/i.test(m); }) || docs.some(function (x) { return /levy packet/i.test(x.label) && !x.pending && (x.fix || (x.days != null && x.days < 30)); });
     var levyBtn = !asAdmin && !d.limited && levyDue && (activeEntry() || {}).code ? '<a class="btn primary" href="?view=levy">Sign the Levy packet online</a>' : '';
-    out += '</ul>' + levyBtn + (!asAdmin && d.links.upload && bad ? '<a class="btn' + (!levyBtn ? ' primary' : '') + '" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
+    // Minor release missing, needing a fix or expiring soon: sign it online with a parent (same device or a link for them)
+    var relDue = miss.some(function (m) { return /minor release/i.test(m); }) || docs.some(function (x) { return /minor release/i.test(x.label) && !x.pending && (x.fix || (x.days != null && x.days < 30)); });
+    var relBtn = !asAdmin && !d.limited && relDue && (activeEntry() || {}).code ? '<a class="btn' + (!levyBtn ? ' primary' : '') + '" href="?view=release">Sign the minor release online</a>' : '';
+    out += '</ul>' + levyBtn + relBtn + (!asAdmin && d.links.upload && bad ? '<a class="btn' + (!levyBtn && !relBtn ? ' primary' : '') + '" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
     // Spots needing names
     (d.spots || []).forEach(function (s) {
       out += '<div class="card warn"><b>' + esc(s.date) + (s.event ? ' · ' + esc(s.event) : '') + '</b><div class="small">Spots under your name still need a name for who\'s working them.</div>' +
