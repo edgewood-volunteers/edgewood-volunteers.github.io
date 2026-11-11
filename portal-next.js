@@ -299,7 +299,7 @@
 
     // Game day
     (d.standToday || []).forEach(function (s) {
-      out += '<div class="card gameday wide"><div class="tag">Today · you\'re the stand lead</div><div class="big">' + esc(s.stand) + (s.event ? ' · ' + esc(s.event) : '') + '</div>' +
+      out += '<div class="card gameday wide"><div class="tag">' + (s.late ? esc(s.date || '') + ' · stand sheet not submitted yet' : 'Today · you\'re the stand lead') + '</div><div class="big">' + esc(s.stand) + (s.event ? ' · ' + esc(s.event) : '') + '</div>' +
         (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Log your stand\'s hours</a>' : s.act ? '<a class="btn primary" href="' + esc(toSite(s.act)) + '">Open this stand\'s time sheet (as admin)</a>' : '<p class="small muted">' + (asAdmin ? 'Admin view hides the stand link.' : 'Your stand link is in your Hub email, or enter your code above to open it here.') + '</p>') +
         (d.techPhone ? '<a class="btn" href="' + telLink(d.techPhone, 'sms') + '">Page not working? Text tech support (Nick)</a>' : '') + '</div>';
     });
