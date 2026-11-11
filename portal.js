@@ -189,7 +189,7 @@
         call('portal', { email: em }).then(function (d) {
           if (d.pick) return pickPerson(em, d.pick);
           saveEntry({ email: em, personId: d.me.personId, first: d.me.first, limited: true }); state.data = d; renderHome(d, false);
-        }).catch(function (e) { undo(); msg.textContent = e.message; });
+        }).catch(function (e) { undo(); if (/couldn't find that email/i.test(e.message)) return newEmail(em); msg.textContent = e.message; });
         return;
       }
       var c = normCode(raw);
@@ -208,6 +208,24 @@
         googleNew(r, cred);
       }).catch(function (e) { signIn(); var m = document.getElementById('msg'); if (m) m.textContent = e.message; });
     });
+  }
+
+  /** Nov 10: a typed email that isn't on the volunteer list. Offer sign-up (the paperwork form, email filled in) instead of a dead end.
+   *  The email goes to the form through sessionStorage (same site), not the address bar. Nothing is saved on the device until they finish. */
+  function newEmail(em) {
+    state.page = 'Portal (email, new)';
+    h(header('', false) +
+      '<div class="card"><h2>Welcome!</h2>' +
+      '<p class="muted">We don\'t have <b>' + esc(em) + '</b> on the volunteer list yet.</p>' +
+      '<button class="btn primary" id="new">I\'m new: sign me up</button>' +
+      '<p class="small muted">Opens the volunteer form with your email filled in. When you finish, tap <b>Open my volunteer page</b>.</p></div>' +
+      '<div class="card"><h2>Already a volunteer?</h2><p class="muted">Use the email your Hub emails come to, or the code from your Hub email (it looks like K7Q4-M9XD).</p>' +
+      '<button class="btn" id="back">Try a different email or code</button></div>' + footer());
+    on('#new', 'click', function () {
+      try { sessionStorage.setItem('hubNewEmail', em); } catch (x) {}
+      location.href = location.pathname + '?view=form';
+    });
+    on('#back', 'click', function () { signIn(); var c = document.getElementById('code'); if (c) c.value = em; });
   }
 
   /** Google sign-in button (the same Google client as admin sign-in). */
