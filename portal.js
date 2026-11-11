@@ -41,7 +41,7 @@
       P + '.ico.good{background:#DCFCE7}' + P + '.ico.bad{background:#FEF3C7}' + P + '.ico.wait{background:#E0E7FF}',
       P + '.st-title{font-size:16px;font-weight:700}' + P + '.st-sub{font-size:13px;color:#475569}',
       P + '.docs{list-style:none;margin:12px 0 0;padding:12px 0 0;border-top:1px solid #EEF2F7}',
-      P + '.docs li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;font-size:14px}',
+      P + '.docs li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0 8px;padding:5px 0;font-size:14px}',
       P + '.docs .nm{display:flex;align-items:center;gap:8px}',
       P + '.tagp{display:inline-block;padding:2px 8px;border-radius:99px;background:#E0E7FF;color:#1E3A8A;font-size:11px;font-weight:600}',
       P + '.btn{min-height:44px;border-radius:12px;font:600 14px Inter,sans-serif;display:flex;align-items:center;justify-content:center;gap:6px}',
@@ -338,7 +338,8 @@
     docs.forEach(function (x) {
       var warn = x.fix || (x.days != null && x.days < 30);
       out += '<li><span class="nm">' + (warn ? ICON.sBad : ICON.sOk) + esc(x.label) + '</span><span>' +
-        (x.pending ? '<span class="tagp">being checked</span>' : '<span class="' + (warn ? 'err' : 'muted') + ' small">' + (x.fix ? 'needs a fix' : x.exp ? 'to ' + esc(x.exp) : '') + '</span>') + '</span></li>';
+        (x.pending ? '<span class="tagp">being checked</span>' : '<span class="' + (warn ? 'err' : 'muted') + ' small">' + (x.fix ? (x.rejected ? 'not accepted' : 'needs a fix') : x.exp ? 'to ' + esc(x.exp) : '') + '</span>') + '</span>' +
+        (x.fix && x.reason ? '<div class="small err" style="flex-basis:100%;margin:2px 0 0 22px">Why: ' + esc(x.reason) + '</div>' : '') + '</li>';
     });
     miss.forEach(function (m) { out += '<li><span class="nm">' + ICON.sBad + esc(m) + '</span></li>'; });
     // Levy packet missing, needing a fix or expiring soon: offer to sign it online (needs a code on this device, not an email sign-in)
