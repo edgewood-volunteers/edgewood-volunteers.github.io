@@ -185,7 +185,8 @@
       (window.HUB_GOOGLE_CLIENT_ID ? '<div id="gbtn" class="gbtn"></div><p class="small muted">New volunteer? Sign in with Google to get started.</p><div class="or"><span>or</span></div>' : '') +
       '<p class="muted">Enter the volunteer code from your Hub email (it looks like K7Q4-M9XD) for everything, or your email address to see your shifts, hours and paperwork. This device will remember it.</p>' +
       '<input id="code" autocomplete="off" placeholder="ABCD-1234 or you@example.com">' +
-      '<button class="btn primary" id="go">Open my page</button><p class="err" id="msg"></p></div>' +
+      '<button class="btn primary" id="go">Open my page</button><p class="err" id="msg"></p>' +
+      '<p class="small center" style="margin-top:10px"><a href="#" id="getcode">Don\'t have your code? Email it to me</a></p></div>' +
       '<div class="card"><a class="btn" href="?view=coverage">See open spots</a></div>' + footer());
     var go = function () {
       var raw = document.getElementById('code').value.trim(), msg = document.getElementById('msg'), btn = document.getElementById('go');
@@ -207,6 +208,7 @@
     };
     on('#go', 'click', go);
     on('#code', 'keydown', function (e) { if (e.key === 'Enter') go(); });
+    on('#getcode', 'click', function (e) { e.preventDefault(); var v = document.getElementById('code').value.trim(); codeEmail(/@/.test(v) ? v : ''); });
     gsi('gbtn', function (cred) {
       state.page = 'Portal (Google)';
       spinner('Signing you in with Google…');   // the Hub check takes a few seconds; show it right away
@@ -227,12 +229,52 @@
       '<button class="btn primary" id="new">I\'m new: sign me up</button>' +
       '<p class="small muted">Opens the volunteer form with your email filled in. When you finish, tap <b>Open my volunteer page</b>.</p></div>' +
       '<div class="card"><h2>Already a volunteer?</h2><p class="muted">Use the email your Hub emails come to, or the code from your Hub email (it looks like K7Q4-M9XD).</p>' +
-      '<button class="btn" id="back">Try a different email or code</button></div>' + footer());
+      '<button class="btn" id="back">Try a different email or code</button>' +
+      '<button class="btn" id="getcode">Email me my code</button></div>' + footer());
     on('#new', 'click', function () {
       try { sessionStorage.setItem('hubNewEmail', em); } catch (x) {}
       location.href = location.pathname + '?view=form';
     });
     on('#back', 'click', function () { signIn(); var c = document.getElementById('code'); if (c) c.value = em; });
+    on('#getcode', 'click', function () { codeEmail(''); });
+  }
+
+  /** Nov 12: "Email me my code". The Hub emails the code(s) on file for that address, only to that address (section 30);
+   *  the code never comes back to the page. Not on file: says so right away, like the sign-in page does. */
+  function codeEmail(prefill, back) {
+    state.page = 'Portal (email my code)';
+    back = back || function () { signIn(); };
+    h(header('', false) +
+      '<div class="card"><h2>Email me my code</h2>' +
+      '<p class="muted">Enter the email your Hub emails come to. We\'ll send your volunteer code and a button that opens your page. Family sharing one email? Everyone\'s code comes in the same email.</p>' +
+      '<input id="cem" type="email" autocomplete="email" placeholder="you@example.com" value="' + esc(prefill || '') + '">' +
+      '<button class="btn primary" id="csend">Email my code</button><p class="err" id="msg"></p><div id="cres"></div></div>' +
+      '<div class="center small"><a href="#" id="back">Back</a></div>' + footer());
+    var go = function () {
+      var em = document.getElementById('cem').value.trim().toLowerCase(), msg = document.getElementById('msg'), res = document.getElementById('cres'), btn = document.getElementById('csend');
+      msg.textContent = ''; res.innerHTML = '';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { msg.textContent = 'Enter the email address your Hub emails come to.'; return; }
+      if (btn.disabled) return;
+      var undo = busy(btn, 'Sending…');
+      call('sendCode', { email: em }).then(function (r) {
+        undo();
+        if (!r.found) {
+          res.innerHTML = '<p class="err">We couldn\'t find that email.</p><p class="small muted">Try the email your Hub emails come to. New to volunteering?</p>' +
+            '<button class="btn" id="cnew">I\'m new: sign me up</button>';
+          on('#cnew', 'click', function () { try { sessionStorage.setItem('hubNewEmail', em); } catch (x) {} location.href = location.pathname + '?view=form'; });
+          var i = document.getElementById('cem'); if (i) { i.focus(); i.select(); }
+          return;
+        }
+        var t = r.sent ? '<b>Sent!</b> Check <b>' + esc(em) + '</b> for ' + (r.count > 1 ? 'your family\'s codes' : 'your code') + '. It usually arrives in a minute or two. Not there? Check your spam folder.'
+          : r.recent ? 'We already sent it to <b>' + esc(em) + '</b> in the last few minutes. Check your inbox and your spam folder.'
+          : r.limit ? 'We\'ve already sent your code to <b>' + esc(em) + '</b> several times today. Check your inbox and spam folder, or <a href="mailto:' + LIAISON + '">email the IU liaison</a>.'
+          : 'We couldn\'t send email right now. Try again later, or <a href="mailto:' + LIAISON + '">email the IU liaison</a>.';
+        res.innerHTML = '<div style="margin-top:12px;padding:12px 14px;border-radius:12px;line-height:1.45;font-size:14px;' +
+          (r.sent ? 'background:#DCFCE7;color:#14532D' : 'background:#FEF3C7;color:#78350F') + '">' + t + '</div>';
+      }).catch(function (e) { undo(); msg.textContent = /unknown request/i.test(e.message) ? 'This isn\'t ready yet. Please email the IU liaison for your code.' : e.message; });
+    };
+    on('#csend', 'click', go); on('#cem', 'keydown', function (e) { if (e.key === 'Enter') go(); });
+    on('#back', 'click', function (e) { e.preventDefault(); back(); });
   }
 
   /** Google sign-in button (the same Google client as admin sign-in). */
@@ -257,7 +299,8 @@
       '<a class="btn primary" href="' + esc(toSite(r.newLink)) + '">I\'m new: sign me up</a>' +
       '<p class="small muted">Opens the volunteer form with your name and email filled in. Your page opens as soon as you finish.</p></div>' +
       '<div class="card"><h2>Already a volunteer?</h2><p class="muted">Enter the code from your Hub email once. After that, this Google account opens your page. Your Hub emails keep going where they go now.</p>' +
-      '<input id="lcode" autocomplete="off" placeholder="ABCD-1234"><button class="btn" id="link">Link my Google account</button><p class="err" id="msg"></p></div>' +
+      '<input id="lcode" autocomplete="off" placeholder="ABCD-1234"><button class="btn" id="link">Link my Google account</button><p class="err" id="msg"></p>' +
+      '<p class="small center" style="margin-top:10px"><a href="#" id="getcode">Don\'t have your code? Email it to me</a></p></div>' +
       '<div class="center small"><a href="#" id="back">Back</a></div>' + footer());
     var go = function () {
       var c = normCode(document.getElementById('lcode').value), msg = document.getElementById('msg'); msg.textContent = '';
@@ -268,6 +311,7 @@
     };
     on('#link', 'click', go); on('#lcode', 'keydown', function (e) { if (e.key === 'Enter') go(); });
     on('#back', 'click', function (e) { e.preventDefault(); signIn(); });
+    on('#getcode', 'click', function (e) { e.preventDefault(); codeEmail('', function () { googleNew(r, cred); }); });
   }
 
   function pickPerson(email, list) {
