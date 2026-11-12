@@ -389,9 +389,11 @@
       out += '<div class="bar">' + order.map(function (k, i) { return '<div style="width:' + (100 * byStud[k] / tot).toFixed(1) + '%;background:' + COL[i % COL.length] + '"></div>'; }).join('') + '</div>' +
         '<div class="legend">' + order.map(function (k, i) { return '<span><i style="background:' + COL[i % COL.length] + '"></i>' + esc(k) + ' <b>' + esc(Math.round(byStud[k] * 100) / 100) + '</b></span>'; }).join('') + '</div>';
     } else out += '<div class="small muted" style="margin-top:8px">Credited to: ' + (studs || '—') + (sh.unpaid ? ' · ' + esc(sh.unpaid) + ' not paid out yet' : '') + '</div>';
-    // Nov 11: a student's total from everyone credited to them (families split shifts), when someone else worked for them too
-    (sh.students || []).filter(function (s) { return Number(s.people) > 1 && Number(s.hours) > 0; }).forEach(function (s) {
-      out += '<div class="small" style="margin-top:8px"><b>' + esc(s.name) + '\'s total: ' + esc(Math.round(Number(s.hours) * 100) / 100) + ' hours</b> <span class="muted">from ' + esc(s.people) + ' people, you included</span></div>';
+    // Student totals from everyone credited to them (families split shifts). Restored Nov 11: the old My shifts page had this per student.
+    (sh.students || []).filter(function (s) { return Number(s.hours) > 0; }).forEach(function (s) {
+      var n = Number(s.people) || 1, h = Math.round(Number(s.hours) * 100) / 100, u = Math.round(Number(s.unpaid) * 100) / 100;
+      out += '<div class="stutot" style="margin-top:8px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px"><b>' + esc(s.name) + '\u2019s total from everyone: ' + esc(h) + ' hours</b>' +
+        '<div class="small muted">' + (u ? esc(u) + ' not paid out yet · ' : '') + 'from ' + esc(n) + (n === 1 ? ' volunteer' : ' volunteers') + '</div></div>';
     });
     if (sh.unpaid && tot > 0) out += '<div class="small muted" style="margin-top:6px">' + esc(sh.unpaid) + ' not paid out yet</div>';
     var pq = (sh.pending || []).concat(sh.awaiting || []), pH = pq.reduce(function (a, x) { return a + (Number(x.hours) || 0); }, 0);
