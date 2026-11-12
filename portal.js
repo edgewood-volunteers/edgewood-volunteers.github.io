@@ -144,8 +144,15 @@
   var view = qs.get('view');
   if (view === 'leave') return leavePage(qs.get('email') || '');
   if (view === 'admin') {   // "Back to admin portal" from an admin-opened page (p = the volunteer they were working on)
-    var p0 = qs.get('p'); history.replaceState(null, '', location.pathname);
-    if (adminSess()) { state.admin = true; return p0 ? adminView(p0) : adminSearch(); }
+    // Nov 12: the address bar keeps where the admin is (search, a volunteer, a roster), so a refresh reopens the same screen.
+    var p0 = qs.get('p'), r0 = qs.get('hub'), s0 = qs.get('su'), d0 = qs.get('d') || '';
+    if (adminSess()) {
+      state.admin = true;
+      if (p0) return adminView(p0);
+      if (r0 && d0) return adminRoster(r0, d0);
+      if (s0 && d0) return adminSuRoster(s0, d0);
+      return adminSearch();
+    }
     return adminStart();
   }
   if (view === 'directory') { history.replaceState(null, '', location.pathname + '?view=directory'); return dirStart(); }   // section 26 on the Hub
@@ -544,6 +551,12 @@
 
   // ---------- admin (Google sign-in; the Hub checks the account against Lists › Portal admins)
   function adminSess() { var a = store(ADMIN); return a && a.session && a.expires > Date.now() ? a : null; }
+  /** Put the current admin screen in the address bar (replace, not a new history entry). extra = { p } or { hub, d } or { su, d }. */
+  function adminUrl(extra) {
+    var q = new URLSearchParams({ view: 'admin' }); for (var k in (extra || {})) if (extra[k]) q.set(k, extra[k]);
+    try { history.replaceState(null, '', location.pathname + '?' + q.toString()); } catch (e) {}
+  }
+  function adminLeaveUrl() { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
   function adminReq(extra) { var a = adminSess() || {}, o = { adminSession: a.session }; for (var k in extra) o[k] = extra[k]; return o; }
   function adminFail(e) {
     if (/expired|sign in with google/i.test(e.message)) { try { localStorage.removeItem(ADMIN); } catch (x) {} return adminStart('Your admin sign-in expired. Sign in again.'); }
@@ -556,7 +569,7 @@
     h(header('', false) + '<div class="card"><h2>Admin sign-in</h2><p class="muted">Sign in with the Google account that is on the Portal admins list.</p>' +
       (note ? '<p class="err">' + esc(note) + '</p>' : '') + (cid ? '<div id="gbtn"></div>' : '<p class="err">Admin sign-in is not set up yet.</p>') +
       '<p class="err" id="msg"></p><button class="btn" id="cancelAdm">Cancel</button></div>' + footer());
-    on('#cancelAdm', 'click', function () { state.admin = false; state.data ? renderHome(state.data, false) : home(); });
+    on('#cancelAdm', 'click', function () { adminLeaveUrl(); state.admin = false; state.data ? renderHome(state.data, false) : home(); });
     if (!cid) return;
     gsi('gbtn', function (cred) {
       spinner('Signing you in with Google…');
@@ -571,15 +584,16 @@
   }
   function wireAdminBar() {
     on('#adms', 'click', adminSearch);
-    on('#admd', 'click', function () { dirView(); });
-    on('#admx', 'click', function () { state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home(); });
+    on('#admd', 'click', function () { try { history.replaceState(null, '', location.pathname + '?view=directory'); } catch (e) {} dirView(); });
+    on('#admx', 'click', function () { adminLeaveUrl(); state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home(); });
     on('#admo', 'click', function () {
       var a = adminSess(); try { localStorage.removeItem(ADMIN); } catch (x) {}
       if (a) call('adminSignOut', { adminSession: a.session }).catch(function () {});
-      state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home();
+      adminLeaveUrl(); state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home();
     });
   }
   function adminSearch() {
+    adminUrl();
     h(adminBar() + '<div class="cols"><div class="card"><h2>Look up a volunteer</h2><input id="q" placeholder="Name, email, or phone number"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' +
       '<div class="card"><h2>Stands (last 3 days)</h2><div id="stands"><div class="spin"></div></div></div>' +
       '<div class="card wide"><h2>Hub games</h2><p class="small muted">Rosters: move, remove, add or hand off. Every change is stamped and logged.</p><div id="hubgames"><div class="spin"></div></div></div>' +
@@ -646,6 +660,7 @@
     });
   }
   function adminSuRoster(src, date) {
+    adminUrl({ su: src, d: date });
     state.page = 'Portal admin SignUp roster'; spinner('Loading roster…');
     call('adminSuRoster', adminReq({ src: src, date: date })).then(function (r) {
       var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>' + esc(r.name) + ' · ' + esc(r.day) + '</b><span class="small muted">SignUp.com</span></div>' +
@@ -674,6 +689,7 @@
   }
   var ROSTER = null;
   function adminRoster(src, date, flash) {
+    adminUrl({ hub: src, d: date });
     state.page = 'Portal admin roster'; spinner('Loading roster…');
     call('adminHubRoster', adminReq({ src: src, date: date })).then(function (r) {
       ROSTER = r;
@@ -968,6 +984,7 @@
   }
 
   function adminView(pid) {
+    adminUrl({ p: pid });
     spinner('Loading volunteer…');
     call('adminView', adminReq({ personId: pid })).then(function (d) { state.adminData = d; renderHome(d, true); }).catch(adminFail);
   }
