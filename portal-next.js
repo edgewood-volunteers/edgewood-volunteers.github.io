@@ -371,6 +371,10 @@
       out += '<div class="bar">' + order.map(function (k, i) { return '<div style="width:' + (100 * byStud[k] / tot).toFixed(1) + '%;background:' + COL[i % COL.length] + '"></div>'; }).join('') + '</div>' +
         '<div class="legend">' + order.map(function (k, i) { return '<span><i style="background:' + COL[i % COL.length] + '"></i>' + esc(k) + ' <b>' + esc(Math.round(byStud[k] * 100) / 100) + '</b></span>'; }).join('') + '</div>';
     } else out += '<div class="small muted" style="margin-top:8px">Credited to: ' + (studs || '—') + (sh.unpaid ? ' · ' + esc(sh.unpaid) + ' not paid out yet' : '') + '</div>';
+    // Nov 11: a student's total from everyone credited to them (families split shifts), when someone else worked for them too
+    (sh.students || []).filter(function (s) { return Number(s.people) > 1 && Number(s.hours) > 0; }).forEach(function (s) {
+      out += '<div class="small" style="margin-top:8px"><b>' + esc(s.name) + '\'s total: ' + esc(Math.round(Number(s.hours) * 100) / 100) + ' hours</b> <span class="muted">from ' + esc(s.people) + ' people, you included</span></div>';
+    });
     if (sh.unpaid && tot > 0) out += '<div class="small muted" style="margin-top:6px">' + esc(sh.unpaid) + ' not paid out yet</div>';
     var pq = (sh.pending || []).concat(sh.awaiting || []), pH = pq.reduce(function (a, x) { return a + (Number(x.hours) || 0); }, 0);
     if (pq.length) out += '<div class="pend"><span class="dot"></span><span><b>' + (pH ? esc(Math.round(pH * 100) / 100) + (Number(sh.hours) ? ' more' : '') + ' hour' + (pH === 1 ? '' : 's') : pq.length + (Number(sh.hours) ? ' more' : '') + ' shift' + (pq.length > 1 ? 's' : '')) + '</b> pending review' +
