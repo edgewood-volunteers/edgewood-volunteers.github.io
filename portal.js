@@ -356,13 +356,18 @@
         (x.fix && x.reason ? '<div class="small err" style="flex-basis:100%;margin:2px 0 0 22px">Why: ' + esc(x.reason) + '</div>' : '') + '</li>';
     });
     miss.forEach(function (m) { out += '<li><span class="nm">' + ICON.sBad + esc(m) + '</span></li>'; });
+    // Nov 12: people kept trying to upload the ATC application/receipt. The permit itself comes by email after the ATC approves it.
+    var atcDue = miss.some(function (m) { return /atc permit/i.test(m); });
+    var atcNote = atcDue ? '<div style="background:#FEF3C7;border:2px solid #F59E0B;border-radius:10px;padding:10px 12px;margin:10px 0;color:#78350F">' +
+      '<b>⏳ ATC permit: it comes by email, and not right away.</b> <span class="small">(Only needed for alcohol spots.)</span><div class="small" style="margin-top:4px">After you apply, the ATC reviews your application and emails your permit once it\'s approved. That can take a few days. ' +
+      'Upload the permit from that email (the full page or the wallet card). The application or payment receipt isn\'t the permit.</div></div>' : '';
     // Levy packet missing, needing a fix or expiring soon: offer to sign it online (needs a code on this device, not an email sign-in)
     var levyDue = miss.some(function (m) { return /levy packet/i.test(m); }) || docs.some(function (x) { return /levy packet/i.test(x.label) && !x.pending && (x.fix || (x.days != null && x.days < 30)); });
     var levyBtn = !asAdmin && !d.limited && levyDue && (activeEntry() || {}).code ? '<a class="btn primary" href="?view=levy">Sign the Levy packet online</a>' : '';
     // Minor release missing, needing a fix or expiring soon: sign it online with a parent (same device or a link for them)
     var relDue = miss.some(function (m) { return /minor release/i.test(m); }) || docs.some(function (x) { return /minor release/i.test(x.label) && !x.pending && (x.fix || (x.days != null && x.days < 30)); });
     var relBtn = !asAdmin && !d.limited && relDue && (activeEntry() || {}).code ? '<a class="btn' + (!levyBtn ? ' primary' : '') + '" href="?view=release">Sign the minor release online</a>' : '';
-    out += '</ul>' + levyBtn + relBtn + (!asAdmin && d.links.upload && bad ? '<a class="btn' + (!levyBtn && !relBtn ? ' primary' : '') + '" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
+    out += '</ul>' + atcNote + levyBtn + relBtn + (!asAdmin && d.links.upload && bad ? '<a class="btn' + (!levyBtn && !relBtn ? ' primary' : '') + '" href="' + esc(toSite(d.links.upload)) + '">Upload paperwork</a>' : '') + '</div>';
     // Spots needing names
     (d.spots || []).forEach(function (s) {
       out += '<div class="card warn"><b>' + esc(s.date) + (s.event ? ' · ' + esc(s.event) : '') + '</b><div class="small">Spots under your name still need a name for who\'s working them.</div>' +
