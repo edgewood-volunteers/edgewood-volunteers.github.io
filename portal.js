@@ -631,8 +631,12 @@
       var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>' + esc(r.name) + ' · ' + esc(r.day) + '</b><span class="small muted">' +
         ({ open: 'Open', locked: 'Locked', notyet: 'Not open yet' }[r.state] || r.state) + '</span></div>' + (r.lockLabel ? '<p class="small muted">Sign-up closes ' + esc(r.lockLabel) + '</p>' : '') +
         (flash ? '<p class="ok" style="color:#1e7e34;font-weight:bold">' + esc(flash) + '</p>' : '') + '<div id="act"></div></div>';
+      var rc = reachOf(r);
+      o += reachCard(rc, r);
       r.stands.forEach(function (st) {
-        o += '<div class="card"><h2>' + esc(st.code) + (st.canceled ? ' <span class="err">canceled' + (st.why ? ': ' + esc(st.why) : '') + '</span>' : '') + '</h2>';
+        var sn = rc.byStand[st.code] || [];
+        o += '<div class="card"><h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px">' + esc(st.code) + (st.canceled ? ' <span class="err">canceled' + (st.why ? ': ' + esc(st.why) : '') + '</span>' : '') +
+          (!st.canceled && sn.length ? '<a class="btn sm rtxt" href="#" data-stand="' + esc(st.code) + '">Text this stand (' + sn.length + ')</a>' : '') + '</h2>';
         st.positions.forEach(function (p) {
           o += '<div style="margin:10px 0 4px"><b>' + esc(p.task.replace(/^\([^)]*\)\s*/, '')) + '</b> <span class="small muted">' + esc(p.time) + ' · ' + p.people.length + ' of ' + p.q +
             (p.permit ? ' · permit' : '') + (p.lead ? ' · lead' : '') + '</span></div>';
@@ -651,6 +655,7 @@
       });
       h(o + footer()); wireAdminBar();
       on('#rback', 'click', adminSearch);
+      wireReach(rc, r);
       on('.rop', 'click', function () { adminAct(this.getAttribute('data-op'), this.getAttribute('data-key'), this.getAttribute('data-name'), this.getAttribute('data-task')); });
     }).catch(adminFail);
   }
@@ -729,6 +734,80 @@
           $('amsg').textContent = e.message;
           if (/Type a reason/.test(e.message) && $('arsn')) { $('arsn').style.display = ''; $('arsn').focus(); }
         });
+    };
+  }
+  // ---------- admin: reach out to a game or a stand (Nov 12). Same group text as the stand lead's "Text everyone working",
+  // opened on the admin's own phone. Nothing is sent by the Hub and nothing costs email budget.
+  // Bigger group texts fail on many Android phones (MMS limit) and turn into reply-all storms. A function, not a var: the router above returns before a var here would be set.
+  function groupMax() { return 20; }
+  function digitsOf(p) { var d = String(p || '').replace(/\D/g, ''); if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1); return d.length >= 10 ? d : ''; }
+  function smsHref(nums, body) {
+    var ios = /iPhone|iPad|iPod/i.test(navigator.userAgent), list = nums.join(','), b = encodeURIComponent(body);
+    if (nums.length > 1) return ios ? 'sms:/open?addresses=' + list + '&body=' + b : 'sms:' + list + '?body=' + b;
+    return 'sms:' + list + (ios ? '&' : '?') + 'body=' + b;
+  }
+  function prettyPhone(d) { return '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6); }
+  /** Unique numbers per stand, for the whole game, and for the leads. Canceled stands are left out. One number shared by a household is texted once. */
+  function reachOf(r) {
+    var out = { all: [], leads: [], byStand: {}, stands: [], noPhone: [] };
+    r.stands.forEach(function (st) {
+      if (st.canceled) return;
+      var mine = [];
+      st.positions.forEach(function (p) { p.people.forEach(function (x) {
+        var n = digitsOf(x.phone);
+        if (!n) { out.noPhone.push(x.name + ' (' + st.code + ')'); return; }
+        if (mine.indexOf(n) < 0) mine.push(n);
+        if (out.all.indexOf(n) < 0) out.all.push(n);
+        if (p.lead && out.leads.indexOf(n) < 0) out.leads.push(n);
+      }); });
+      out.byStand[st.code] = mine;
+      if (mine.length) out.stands.push(st.code);
+    });
+    // Whole game too big for one group text: groups of whole stands, each at most groupMax() numbers (a bigger stand goes alone).
+    out.batches = [];
+    var cur = null;
+    out.stands.forEach(function (c) {
+      var add = out.byStand[c].filter(function (n) { return !cur || cur.nums.indexOf(n) < 0; });
+      if (!cur || cur.nums.length + add.length > groupMax()) { cur = { stands: [], nums: [] }; out.batches.push(cur); add = out.byStand[c].slice(); }
+      cur.stands.push(c); add.forEach(function (n) { if (cur.nums.indexOf(n) < 0) cur.nums.push(n); });
+    });
+    return out;
+  }
+  function reachIntro(r, stand) {
+    var me = String((adminSess() || {}).name || '').split(/\s+/)[0];
+    return 'Hi, this is ' + (me || 'the IU concessions team') + ' with the Edgewood volunteers, about ' + r.name + ' on ' + r.day + (stand ? ' (stand ' + stand + ')' : '') + '. ';
+  }
+  function reachCard(rc, r) {
+    if (!rc.all.length) return '<div class="card"><h2>Reach out</h2><p class="muted small">No phone numbers on this game yet.</p></div>';
+    var o = '<div class="card"><h2>Reach out</h2><div style="display:flex;gap:6px;flex-wrap:wrap">';
+    if (rc.all.length <= groupMax()) o += '<a class="btn primary sm rtxt" href="#" data-all="1">Text everyone at this game (' + rc.all.length + ')</a>';
+    else rc.batches.forEach(function (b, i) {
+      o += '<a class="btn primary sm rtxt" href="#" data-batch="' + i + '">Text group ' + (i + 1) + ' of ' + rc.batches.length + ': ' + esc(b.stands.join(', ')) + ' (' + b.nums.length + ')</a>';
+    });
+    if (rc.leads.length) o += '<a class="btn sm rtxt" href="#" data-leads="1">Text the stand leads (' + rc.leads.length + ')</a>';
+    o += '<button class="btn sm" id="rcopy">Copy all ' + rc.all.length + ' numbers</button></div>';
+    o += '<p class="small muted">Opens a group text on this phone with a short intro; type the rest. Everyone in a group text sees each other\'s numbers.' +
+      (rc.all.length > groupMax() ? ' Over ' + groupMax() + ' people, the game is split into groups of whole stands, because big group texts fail on many phones.' : '') + '</p>';
+    if (rc.noPhone.length) o += '<p class="small err">No phone on file: ' + rc.noPhone.map(esc).join(', ') + '</p>';
+    return o + '<p class="small" id="rcmsg"></p></div>';
+  }
+  function wireReach(rc, r) {
+    Array.prototype.forEach.call(root.querySelectorAll('.rtxt'), function (a) {
+      a.addEventListener('click', function () {
+        var st = a.getAttribute('data-stand'), b = a.getAttribute('data-batch'), nums, intro;
+        if (st) { nums = rc.byStand[st]; intro = reachIntro(r, st); }
+        else if (b != null) { nums = rc.batches[+b].nums; intro = reachIntro(r, ''); }
+        else if (a.getAttribute('data-leads')) { nums = rc.leads; intro = reachIntro(r, '').replace(/\. $/, '. To the stand leads: '); }
+        else { nums = rc.all; intro = reachIntro(r, ''); }
+        a.href = smsHref(nums, intro);   // set on tap, like the stand page, so the intro uses the signed-in admin
+      });
+    });
+    var cb = document.getElementById('rcopy');
+    if (cb) cb.onclick = function () {
+      var txt = rc.all.map(prettyPhone).join(', '), m = document.getElementById('rcmsg');
+      var done = function () { m.textContent = 'Copied ' + rc.all.length + ' numbers.'; m.style.color = '#1e7e34'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { m.textContent = txt; });
+      else m.textContent = txt;
     };
   }
   function standOf(task) { var m = String(task || '').match(/^\(([^)]+)\)/); return m ? m[1] : ''; }
