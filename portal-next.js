@@ -260,7 +260,13 @@
     var list = codes(), act = (activeEntry() || {}).id;
     var pills = list.map(function (x) {
       return '<button class="pill' + (x.id === act && !state.admin ? ' on' : '') + '" data-code="' + esc(x.id) + '">' + esc(x.first || (x.code ? fmtCode(x.code) : x.email)) + '</button>';
-    }).join('') + (list.length ? '<button class="pill add" id="addp" title="Add another person on this device">+ Add</button>' : '');
+    }).join('');
+    // Nov 11: others on the same email (the Hub sends them only to a code sign-in): one tap adds them to this device
+    var d0 = state.data || {}, have = {};
+    list.forEach(function (x) { if (x.personId) have[x.personId] = 1; if (x.code) have[normCode(x.code)] = 1; });
+    state.houseAdd = (!state.admin && !d0.limited && d0.house || []).filter(function (p) { return p && p.code && !have[p.personId] && !have[normCode(p.code)]; });
+    pills += state.houseAdd.map(function (p, i) { return '<button class="pill add" data-house="' + i + '" title="Shares your email. Add to this device">+ ' + esc(p.first) + '</button>'; }).join('');
+    pills += (list.length ? '<button class="pill add" id="addp" title="Add another person on this device">+ Add</button>' : '');
     var ini = String(first || '').trim().charAt(0).toUpperCase();
     return '<header><div class="hx-top"><a class="eyebrow" href="' + location.pathname + '">Edgewood Volunteer Hub</a>' + (ini ? '<div class="avatar" aria-hidden="true">' + esc(ini) + '</div>' : '') + '</div>' +
       '<div class="hello">' + (first ? 'Hi, ' + esc(first) : 'Volunteer pages') + '</div>' +
@@ -276,6 +282,7 @@
   function wireHeader() {
     on('.pill[data-code]', 'click', function () { state.admin = false; store(ACTIVE, this.getAttribute('data-code')); home(); });
     on('#addp', 'click', function () { state.admin = false; signIn(); });
+    on('.pill[data-house]', 'click', function () { var p = (state.houseAdd || [])[+this.getAttribute('data-house')]; if (!p) return; saveCode(p.code, p.first, p.personId); state.admin = false; home(); });
     on('#adm', 'click', function () { if (state.admin) { state.admin = false; renderHome(state.data, false); } else adminStart(); });
     on('#dirp', 'click', function () { dirStart(); });
   }
