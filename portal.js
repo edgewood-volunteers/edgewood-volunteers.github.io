@@ -582,9 +582,11 @@
   function adminSearch() {
     h(adminBar() + '<div class="cols"><div class="card"><h2>Look up a volunteer</h2><input id="q" placeholder="Name, email, or phone number"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' +
       '<div class="card"><h2>Stands (last 3 days)</h2><div id="stands"><div class="spin"></div></div></div>' +
-      '<div class="card wide"><h2>Hub games</h2><p class="small muted">Rosters: move, remove, add or hand off. Every change is stamped and logged.</p><div id="hubgames"><div class="spin"></div></div></div></div>' + footer());
+      '<div class="card wide"><h2>Hub games</h2><p class="small muted">Rosters: move, remove, add or hand off. Every change is stamped and logged.</p><div id="hubgames"><div class="spin"></div></div></div>' +
+      '<div class="card wide"><h2>SignUp.com games</h2><p class="small muted">Who is working each stand, with group-text buttons. Changes still happen on SignUp.com.</p><div id="sugames"><div class="spin"></div></div></div></div>' + footer());
     wireAdminBar();
     adminHubList();
+    adminSuList();
     call('adminStands', adminReq({})).then(function (r) {
       var el = document.getElementById('stands'); if (!el) return;
       if (!r.stands.length) { el.innerHTML = '<p class="muted">No stands today or in the last 2 days.</p>'; return; }
@@ -622,6 +624,53 @@
       }).join('');
       on('.rost', 'click', function () { adminRoster(this.getAttribute('data-src'), this.getAttribute('data-date')); });
     }).catch(function (e) { if (/expired|sign in with google/i.test(e.message)) return adminFail(e); el.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
+  }
+  // ---------- admin: SignUp.com games (section 29 on the Hub). Read only: who is on each stand, plus Reach out.
+  function adminSuList() {
+    var el = document.getElementById('sugames'); if (!el) return;
+    call('adminSuGames', adminReq({})).then(function (r) {
+      if (!r.games.length) { el.innerHTML = '<p class="muted">No SignUp.com games from the last 2 days on.</p>'; return; }
+      var show = function (all) {
+        var list = all ? r.games : r.games.slice(0, 8);
+        el.innerHTML = list.map(function (g) {
+          return '<div class="hrow"><span><b>' + esc(g.name) + '</b><div class="small muted">' + (g.today ? 'Today · ' : '') + esc(g.day) + (g.past ? ' (past)' : '') + ' · ' + g.n + ' signed up · ' + g.stands + ' stand' + (g.stands === 1 ? '' : 's') + '</div></span>' +
+            '<button class="btn sm surost" data-src="' + esc(g.src) + '" data-date="' + esc(g.date) + '">Roster</button></div>';
+        }).join('') + (!all && r.games.length > 8 ? '<button class="btn sm" id="sumore" style="margin-top:6px">Show all ' + r.games.length + '</button>' : '');
+        on('.surost', 'click', function () { adminSuRoster(this.getAttribute('data-src'), this.getAttribute('data-date')); });
+        on('#sumore', 'click', function () { show(true); });
+      };
+      show(false);
+    }).catch(function (e) {
+      if (/expired|sign in with google/i.test(e.message)) return adminFail(e);
+      el.innerHTML = /unknown|not.*(found|defined)|action/i.test(e.message) ? '<p class="muted small">Not available yet: the Hub needs its web app redeployed.</p>' : '<p class="err">' + esc(e.message) + '</p>';
+    });
+  }
+  function adminSuRoster(src, date) {
+    state.page = 'Portal admin SignUp roster'; spinner('Loading roster…');
+    call('adminSuRoster', adminReq({ src: src, date: date })).then(function (r) {
+      var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>' + esc(r.name) + ' · ' + esc(r.day) + '</b><span class="small muted">SignUp.com</span></div>' +
+        '<p class="small muted">Read only. Move or remove people on SignUp.com, or use Game Tasks › Add a worker by hand.</p></div>';
+      var rc = reachOf(r);
+      o += reachCard(rc, r);
+      r.stands.forEach(function (st) {
+        var sn = rc.byStand[st.code] || [];
+        o += '<div class="card"><h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px">' + esc(st.code) + (st.canceled ? ' <span class="err">canceled</span>' : '') +
+          (!st.canceled && sn.length ? '<a class="btn sm rtxt" href="#" data-stand="' + esc(st.code) + '">Text this stand (' + sn.length + ')</a>' : '') + '</h2>';
+        st.positions.forEach(function (p) {
+          o += '<div style="margin:10px 0 4px"><b>' + esc(p.task.replace(/^\([^)]*\)\s*/, '')) + '</b> <span class="small muted">' + p.people.length + (p.lead ? ' · lead' : '') + '</span></div>';
+          p.people.forEach(function (x) {
+            o += '<div class="hrow"><span>' + esc(x.name) + (x.minor ? ' <span class="small muted">(minor)</span>' : '') +
+              '<div class="small muted">' + (x.phone ? '<a href="' + telLink(x.phone) + '">' + esc(x.phone) + '</a> · ' : 'no phone · ') + esc(x.credit || 'credit on file') + (x.program ? ' · ' + esc(x.program) : '') + '</div></span>' +
+              (x.pid ? '<button class="btn sm suview" data-id="' + esc(x.pid) + '">Open</button>' : '') + '</div>';
+          });
+        });
+        o += '</div>';
+      });
+      h(o + footer()); wireAdminBar();
+      on('#rback', 'click', adminSearch);
+      on('.suview', 'click', function () { adminView(this.getAttribute('data-id')); });
+      wireReach(rc, r);
+    }).catch(adminFail);
   }
   var ROSTER = null;
   function adminRoster(src, date, flash) {
@@ -740,7 +789,8 @@
   // opened on the admin's own phone. Nothing is sent by the Hub and nothing costs email budget.
   // Bigger group texts fail on many Android phones (MMS limit) and turn into reply-all storms. A function, not a var: the router above returns before a var here would be set.
   function groupMax() { return 20; }
-  function digitsOf(p) { var d = String(p || '').replace(/\D/g, ''); if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1); return d.length >= 10 ? d : ''; }
+  // digitsOf: the first number when several are on file ("812...; 317...").
+  function digitsOf(p) { var d = String(p || '').split(/[;,\/]|\bor\b/)[0].replace(/\D/g, ''); if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1); return d.length >= 10 ? d : ''; }
   function smsHref(nums, body) {
     var ios = /iPhone|iPad|iPod/i.test(navigator.userAgent), list = nums.join(','), b = encodeURIComponent(body);
     if (nums.length > 1) return ios ? 'sms:/open?addresses=' + list + '&body=' + b : 'sms:' + list + '?body=' + b;
