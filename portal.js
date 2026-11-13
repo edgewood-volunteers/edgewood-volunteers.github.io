@@ -151,6 +151,7 @@
       if (p0) return adminView(p0);
       if (r0 && d0) return adminRoster(r0, d0);
       if (s0 && d0) return adminSuRoster(s0, d0);
+      if (qs.get('day')) return adminDay(qs.get('day'));
       return adminSearch();
     }
     return adminStart();
@@ -694,12 +695,20 @@
     call('adminSuGames', adminReq({})).then(function (r) {
       if (!r.games.length) { el.innerHTML = '<p class="muted">No SignUp.com games from the last 2 days on.</p>'; return; }
       var show = function (all) {
-        var list = all ? r.games : r.games.slice(0, 8);
+        var list = all ? r.games : r.games.slice(0, 8), per = {}, seenDay = {};
+        r.games.forEach(function (g) { per[g.date] = (per[g.date] || 0) + 1; });
         el.innerHTML = list.map(function (g) {
-          return '<div class="hrow"><span><b>' + esc(g.name) + '</b><div class="small muted">' + (g.today ? 'Today · ' : '') + esc(g.day) + (g.past ? ' (past)' : '') + ' · ' + g.n + ' signed up · ' + g.stands + ' stand' + (g.stands === 1 ? '' : 's') + '</div></span>' +
+          var dayRow = '';
+          if (per[g.date] > 1 && !seenDay[g.date]) {   // Nov 13: several games on one day (e.g. HS and JH football) -> one view for all of them
+            seenDay[g.date] = 1;
+            dayRow = '<div class="hrow" style="background:#eef2ff;border-radius:8px;padding:6px 8px;margin-top:6px"><span><b>' + (g.today ? 'Today · ' : '') + esc(g.day) + ': ' + per[g.date] + ' games</b>' +
+              '<div class="small muted">Text all the stand leads or everyone working that day at once</div></span><button class="btn sm primary sueday" data-date="' + esc(g.date) + '">Whole day</button></div>';
+          }
+          return dayRow + '<div class="hrow"><span><b>' + esc(g.name) + '</b><div class="small muted">' + (g.today ? 'Today · ' : '') + esc(g.day) + (g.past ? ' (past)' : '') + ' · ' + g.n + ' signed up · ' + g.stands + ' stand' + (g.stands === 1 ? '' : 's') + '</div></span>' +
             '<button class="btn sm surost" data-src="' + esc(g.src) + '" data-date="' + esc(g.date) + '">Roster</button></div>';
         }).join('') + (!all && r.games.length > 8 ? '<button class="btn sm" id="sumore" style="margin-top:6px">Show all ' + r.games.length + '</button>' : '');
         on('.surost', 'click', function () { adminSuRoster(this.getAttribute('data-src'), this.getAttribute('data-date')); });
+        on('.sueday', 'click', function () { adminDay(this.getAttribute('data-date')); });
         on('#sumore', 'click', function () { show(true); });
       };
       show(false);
@@ -734,6 +743,49 @@
       on('#rback', 'click', adminSearch);
       on('.suview', 'click', function () { adminView(this.getAttribute('data-id')); });
       wireReach(rc, r);
+    }).catch(adminFail);
+  }
+  /** Nov 13: every game on one date (SignUp.com and Hub) in one view, so the admin can text all the stand leads, or everyone, at once.
+   *  Read only. Stand names get the game's short name when there is more than one game (HS and JH both have stands). */
+  function adminDay(date) {
+    adminUrl({ day: date });
+    state.page = 'Portal admin day'; spinner('Loading every game that day…');
+    var su = call('adminSuGames', adminReq({})).then(function (r) { return r.games.filter(function (g) { return g.date === date; }); });
+    var hub = call('adminHubGames', adminReq({})).then(function (r) { return r.games.filter(function (g) { return g.date === date; }); }, function () { return []; });
+    Promise.all([su, hub]).then(function (lists) {
+      var jobs = lists[0].map(function (g) { return call('adminSuRoster', adminReq({ src: g.src, date: date })).then(function (r) { r.kind = 'su'; return r; }); })
+        .concat(lists[1].map(function (g) { return call('adminHubRoster', adminReq({ src: g.src, date: date })).then(function (r) { r.kind = 'hub'; return r; }); }));
+      if (!jobs.length) throw new Error('No games found on that day.');
+      return Promise.all(jobs);
+    }).then(function (rs) {
+      var shortOf = function (n) { var parts = String(n || '').split(/\s+[-–]\s+/); return parts.length > 1 ? parts.slice(1).join(' - ') : String(n || ''); };
+      var many = rs.length > 1, day = rs[0].day, all = { name: 'the ' + rs.length + ' games', day: day, stands: [] };
+      rs.forEach(function (r, gi) {
+        r.short = many ? shortOf(r.name) : '';
+        r.stands.forEach(function (st) {
+          all.stands.push({ code: st.code + (many ? ' · ' + r.short : ''), canceled: st.canceled, positions: st.positions, game: gi });
+        });
+      });
+      var rc = reachOf(all);
+      var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>All games · ' + esc(day) + '</b><span class="small muted">' + rs.length + ' game' + (rs.length === 1 ? '' : 's') + '</span></div>' +
+        '<p class="small muted">' + rs.map(function (r) { return esc(r.name) + (r.kind === 'hub' ? ' (Hub)' : ''); }).join(' · ') + '</p></div>';
+      o += reachCard(rc, all, 'these games');
+      rs.forEach(function (r, gi) {
+        o += '<div class="card"><h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px">' + esc(r.name) +
+          '<button class="btn sm dgo" data-k="' + r.kind + '" data-src="' + esc(r.src) + '">Full roster</button></h2>';
+        all.stands.filter(function (st) { return st.game === gi; }).forEach(function (st) {
+          var leads = [], n = (rc.byStand[st.code] || []).length;
+          st.positions.forEach(function (p) { if (p.lead) p.people.forEach(function (x) { leads.push(x.name); }); });
+          o += '<div class="hrow"><span><b>' + esc(st.code.split(' · ')[0]) + '</b>' + (st.canceled ? ' <span class="err">canceled</span>' : '') +
+            '<div class="small muted">Lead: ' + (leads.length ? leads.map(esc).join(', ') : '<span class="err">none signed up</span>') + '</div></span>' +
+            (!st.canceled && n ? '<a class="btn sm rtxt" href="#" data-stand="' + esc(st.code) + '">Text stand (' + n + ')</a>' : '') + '</div>';
+        });
+        o += '</div>';
+      });
+      h(o + footer()); wireAdminBar();
+      on('#rback', 'click', adminSearch);
+      on('.dgo', 'click', function () { var k = this.getAttribute('data-k'), sr = this.getAttribute('data-src'); if (k === 'hub') adminRoster(sr, date); else adminSuRoster(sr, date); });
+      wireReach(rc, all);
     }).catch(adminFail);
   }
   var ROSTER = null;
@@ -892,17 +944,18 @@
     var me = String((adminSess() || {}).name || '').split(/\s+/)[0];
     return 'Hi, this is ' + (me || 'the IU concessions team') + ' with the Edgewood volunteers, about ' + r.name + ' on ' + r.day + (stand ? ' (stand ' + stand + ')' : '') + '. ';
   }
-  function reachCard(rc, r) {
+  function reachCard(rc, r, scope) {
+    scope = scope || 'this game';
     if (!rc.all.length) return '<div class="card"><h2>Reach out</h2><p class="muted small">No phone numbers on this game yet.</p></div>';
     var o = '<div class="card"><h2>Reach out</h2><div style="display:flex;gap:6px;flex-wrap:wrap">';
-    if (rc.all.length <= groupMax()) o += '<a class="btn primary sm rtxt" href="#" data-all="1">Text everyone at this game (' + rc.all.length + ')</a>';
+    if (rc.all.length <= groupMax()) o += '<a class="btn primary sm rtxt" href="#" data-all="1">Text everyone at ' + scope + ' (' + rc.all.length + ')</a>';
     else rc.batches.forEach(function (b, i) {
       o += '<a class="btn primary sm rtxt" href="#" data-batch="' + i + '">Text group ' + (i + 1) + ' of ' + rc.batches.length + ': ' + esc(b.stands.join(', ')) + ' (' + b.nums.length + ')</a>';
     });
     if (rc.leads.length) o += '<a class="btn sm rtxt" href="#" data-leads="1">Text the stand leads (' + rc.leads.length + ')</a>';
     o += '<button class="btn sm" id="rcopy">Copy all ' + rc.all.length + ' numbers</button></div>';
     o += '<p class="small muted">Opens a group text on this phone with a short intro; type the rest. Everyone in a group text sees each other\'s numbers.' +
-      (rc.all.length > groupMax() ? ' Over ' + groupMax() + ' people, the game is split into groups of whole stands, because big group texts fail on many phones.' : '') + '</p>';
+      (rc.all.length > groupMax() ? ' Over ' + groupMax() + ' people, it is split into groups of whole stands, because big group texts fail on many phones.' : '') + '</p>';
     if (rc.noPhone.length) o += '<p class="small err">No phone on file: ' + rc.noPhone.map(esc).join(', ') + '</p>';
     return o + '<p class="small" id="rcmsg"></p></div>';
   }
