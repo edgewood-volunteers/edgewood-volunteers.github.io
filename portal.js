@@ -79,6 +79,7 @@
       P + '.famtop{display:flex;align-items:flex-end;gap:18px;margin:6px 0 2px}' + P + '.famtop .you{border-left:1px solid #e5e7eb;padding-left:18px}' + P + '.famtop .n2{font-family:"Space Grotesk",Inter,sans-serif;font-size:30px;font-weight:700;line-height:1.05;color:#0B2545}',
       P + '.bar.fam{margin-top:14px}' + P + '.famrows{margin-top:10px;border-top:1px solid #eef2f6}' + P + '.frow{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px solid #eef2f6}',
       P + '.frow .fn{font-weight:600;font-size:15px;display:flex;align-items:center}' + P + '.frow .fn i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:8px}' + P + '.frow .fs{margin-left:17px}' + P + '.frow .ft{font-weight:700;font-size:17px}',
+      '#hub.portal .cols.packed{display:block}#hub.portal .pk{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}#hub.portal .pk>div{min-width:0}@media (max-width:899px){#hub.portal .pk{display:block}}',
       P + '.pend{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#FEF3C7;color:#78350F;font-size:13.5px}',
       P + '.pend .dot{flex:none;width:8px;height:8px;border-radius:50%;background:#D97706}',
       P + '.pend .muted{color:#92400E}'
@@ -226,7 +227,22 @@
       document.body.appendChild(el);
     } else if (!w.__hubBusyN && el) el.parentNode.removeChild(el);
   }
-  function h(html) { root.innerHTML = html; window.scrollTo(0, 0); if (typeof wireFooter === 'function') wireFooter(); }
+  function h(html) { root.innerHTML = html; window.scrollTo(0, 0); packCols(); if (typeof wireFooter === 'function') wireFooter(); }
+  /** Nov 14 (Nick): on wide screens, stack the cards in two columns with no gaps (each card goes under the shorter column,
+   *  in page order). Wide cards still span both columns. Phones keep the single column. */
+  function packCols() {
+    if (window.innerWidth < 900 || (ENV === 'LIVE' && !window.HUB_DARK)) return;   // sandbox only for now, like dark mode
+    Array.prototype.forEach.call(root.querySelectorAll('.cols'), function (el) {
+      if (el.classList.contains('packed')) return;
+      var kids = Array.prototype.slice.call(el.children), hts = kids.map(function (k) { return k.offsetHeight; }), seg = null, L, R, hl = 0, hr = 0;
+      el.classList.add('packed');
+      kids.forEach(function (k, i) {
+        if (k.classList.contains('wide') || k.classList.contains('calcard')) { el.appendChild(k); seg = null; return; }
+        if (!seg) { seg = document.createElement('div'); seg.className = 'pk'; L = document.createElement('div'); R = document.createElement('div'); seg.appendChild(L); seg.appendChild(R); el.appendChild(seg); hl = hr = 0; }
+        if (hl <= hr) { L.appendChild(k); hl += hts[i]; } else { R.appendChild(k); hr += hts[i]; }
+      });
+    });
+  }
   /** Button shows a small spinner and a working label while a request runs; returns a function that puts it back. */
   function busy(btn, label) {
     if (!btn) return function () {};
