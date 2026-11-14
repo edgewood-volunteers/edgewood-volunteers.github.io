@@ -149,7 +149,7 @@
     if (adminSess()) {
       state.admin = true;
       if (p0) return adminView(p0);
-      var t0 = qs.get('tool'), T0 = { review: toolReview, family: toolFamily, cancel: toolCancel, sheets: toolSheets, walkin: toolWalkIn, health: toolHealth };
+      var t0 = qs.get('tool'), T0 = { review: toolReview, family: toolFamily, cancel: toolCancel, sheets: toolSheets, logs: toolLogs, noshows: toolNoShows, walkin: toolWalkIn, health: toolHealth };
       if (t0 && T0[t0]) return T0[t0]();
       if (qs.get('ms')) { state.canManage = adminLevel() >= 3; return adminManage(qs.get('ev') || '', d0); }
       if (r0 && d0) return adminRoster(r0, d0);
@@ -707,6 +707,8 @@
       var L = r.level || 4, b = [];
       var add = function (lv, id, label, n, sub) { if (L >= lv) b.push('<button class="hit" id="' + id + '"><b>' + label + (n ? ' <span style="background:#b91c1c;color:#fff;border-radius:10px;padding:1px 8px;font-size:12px">' + n + '</span>' : '') + '</b><div class="small muted">' + sub + '</div></button>'); };
       add(3, 'tl_review', 'Paperwork to review', r.review, 'Check new documents: OK, needs fix, or rejected');
+      add(3, 'tl_logs', 'Approve stand logs', r.logs, 'Send checked time sheets to the hours database');
+      add(3, 'tl_noshows', 'No-show decisions', r.noshows, 'NCNS, excused, or they worked');
       add(3, 'tl_family', 'Family manager requests', r.family, 'Approve or decline');
       add(2, 'tl_sheets', 'Send stand sheets', 0, 'Email stand leads their stand link and sign-in sheet');
       add(2, 'tl_walkin', 'Add a worker by hand', 0, 'Someone working a stand who isn\'t signed up');
@@ -716,6 +718,8 @@
       el.innerHTML = b.join('');
       on('#tl_review', 'click', function () { toolReview(); });
       on('#tl_family', 'click', toolFamily);
+      on('#tl_logs', 'click', toolLogs);
+      on('#tl_noshows', 'click', toolNoShows);
       on('#tl_sheets', 'click', toolSheets);
       on('#tl_walkin', 'click', toolWalkIn);
       on('#tl_cancel', 'click', toolCancel);
@@ -872,6 +876,72 @@
         b.disabled = true; m.className = 'small'; m.textContent = 'Adding…';
         call('adminWalkIn', adminReq({ w: { id: v('ws'), name: v('wn'), email: v('we'), phone: v('wp'), role: v('wr'), credit: v('wc') } }))
           .then(function (x) { toolWalkIn(x.text); }).catch(function (e) { b.disabled = false; toolErr(m, e); });
+      });
+    }).catch(adminFail);
+  }
+  // --- approve stand logs
+  function toolLogs(flash) {
+    adminUrl({ tool: 'logs' }); spinner('Loading time sheets…');
+    call('adminLogStands', adminReq({})).then(function (r) {
+      var o = toolHead('Approve stand logs', 'Submitted time sheets waiting to go into the hours database. Check each line against the sign-in photo. Flagged lines need a reason. No-shows go to No-show decisions instead of the database.');
+      if (!r.stands.length) o += '<div class="card"><p class="muted">Nothing waiting.</p></div>';
+      r.stands.forEach(function (g, gi) {
+        o += '<div class="card"><h2>' + esc(g.stand) + ' · ' + esc(g.date) + '</h2><div class="small muted">' + esc(g.status || '') + (g.by ? ' · sent by ' + esc(g.by) : '') + '</div>' +
+          (g.photos.length ? '<div class="small">' + g.photos.map(function (u, k) { return '<a href="' + esc(u) + '" target="_blank" rel="noopener">Sign-in sheet photo' + (g.photos.length > 1 ? ' ' + (k + 1) : '') + '</a>'; }).join(' · ') + '</div>' : '<div class="small err">No sign-in sheet photo</div>');
+        g.lines.forEach(function (x) {
+          o += '<div style="border-top:1px solid #e2e8f0;padding:8px 0"><label class="chk" style="padding:0"><input type="checkbox" class="lg" data-g="' + gi + '" value="' + esc(x.id) + '"' + (x.two ? ' disabled' : ' checked') + '> <b>' + esc(x.worker) + '</b> ' +
+            (x.worked === 'Worked' ? esc(x.tin) + '–' + esc(x.tout) + ' · ' + x.hours + ' h' : '<span class="err">' + esc(x.worked || 'No-show') + '</span>') + '</label>' +
+            '<div class="small muted" style="margin-left:24px">For ' + esc(x.student || x.credit || '(no student)') + (x.program ? ' · ' + esc(x.program) : '') + '</div>' +
+            (x.two ? '<div class="small err" style="margin-left:24px">Names more than one student (' + esc(x.credit) + '). Fix "Credit to" on the Stand Log tab first.</div>' : '') +
+            (x.flags ? '<div class="small" style="margin-left:24px;color:#b45309">Flags: ' + esc(x.flags) + (x.early ? ' · early start ' + esc(x.early) : '') + '</div>' +
+              '<input class="lr" data-id="' + esc(x.id) + '" placeholder="Why is this OK? (saved as the approval reason)" value="' + esc(x.reason) + '" style="margin-left:24px;width:calc(100% - 24px)">' : '') + '</div>';
+        });
+        o += '<button class="btn primary lgo" data-g="' + gi + '">Approve the checked lines</button><p class="small lmsg" data-g="' + gi + '"></p></div>';
+      });
+      h(o + footer()); toolWire(); if (typeof flash === 'string') toolMsg(flash);
+      on('.lgo', 'click', function () {
+        var b = this, gi = b.getAttribute('data-g'), m = root.querySelector('.lmsg[data-g="' + gi + '"]'), reasons = {};
+        var ids = Array.prototype.map.call(root.querySelectorAll('.lg[data-g="' + gi + '"]:checked'), function (c) { return c.value; });
+        Array.prototype.forEach.call(root.querySelectorAll('.lr'), function (i) { if (i.value.trim()) reasons[i.getAttribute('data-id')] = i.value.trim(); });
+        if (!ids.length) return toolErr(m, new Error('Check at least one line.'));
+        twoTap(b, 'Tap again to send ' + ids.length + ' line(s) to the hours database', function () {
+          b.disabled = true; m.className = 'small'; m.textContent = 'Approving…';
+          call('adminLogApprove', adminReq({ ids: ids, reasons: reasons })).then(function (x) {
+            toolLogs(x.added + ' shift(s) added to the hours database' + (x.skipped ? ', ' + x.skipped + ' no-show(s) sent to No-show decisions' : '') + '.' +
+              (x.left ? ' ' + x.left + ' line(s) were not approved (a flag with no reason, or two students named).' : '') + (x.notes.length ? ' ' + x.notes.join(' ') : ''));
+          }).catch(function (e) { b.disabled = false; toolErr(m, e); });
+        });
+      });
+    }).catch(adminFail);
+  }
+  // --- no-show decisions
+  function toolNoShows(flash) {
+    adminUrl({ tool: 'noshows' }); spinner('Loading no-shows…');
+    call('adminNoShows', adminReq({})).then(function (r) {
+      var o = toolHead('No-show decisions', 'A stand lead marked these people as no-shows. NCNS (no call, no show) counts toward the limit of ' + r.limit + ' (' + esc(r.window) + ') and emails them. Excused never counts. Mistake means they did work.');
+      o += '<div class="card">' + (r.items.length ? r.items.map(function (x) {
+        return '<div style="border-top:1px solid #e2e8f0;padding:8px 0"><b>' + esc(x.worker) + '</b> <span class="small muted">' + esc(x.stand) + ' · ' + esc(x.date) + (x.by ? ' · marked by ' + esc(x.by) : '') + '</span>' +
+          (x.note ? '<div class="small muted">' + esc(x.note) + '</div>' : '') +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><select class="nd" data-id="' + esc(x.id) + '">' + r.decisions.map(function (d) { return '<option' + (d === x.decision ? ' selected' : '') + '>' + esc(d) + '</option>'; }).join('') + '</select>' +
+          '<input class="nn" data-id="' + esc(x.id) + '" placeholder="Note (optional)" value="' + esc(x.dnote) + '"></div></div>';
+      }).join('') : '<p class="muted">No open no-shows.</p>') + '</div>' +
+        '<div class="card"><h2>What recording will do</h2><p id="npv" class="small" style="white-space:pre-line">' + esc(r.preview || 'Nothing new decided yet.') + '</p>' +
+        '<button class="btn primary" id="ngo"' + (r.preview ? '' : ' disabled') + '>Record these decisions</button><p id="nmsg" class="small" style="white-space:pre-line"></p></div>';
+      h(o + footer()); toolWire(); if (typeof flash === 'string') toolMsg(flash);
+      var save = function () {
+        var id = this.getAttribute('data-id'), sel = root.querySelector('.nd[data-id="' + id + '"]'), nt = root.querySelector('.nn[data-id="' + id + '"]'), m = document.getElementById('nmsg');
+        m.className = 'small'; m.textContent = 'Saving…';
+        call('adminNoShowSet', adminReq({ id: id, decision: sel.value, note: nt.value })).then(function (x) {
+          m.textContent = ''; document.getElementById('npv').textContent = x.preview || 'Nothing new decided yet.'; document.getElementById('ngo').disabled = !x.preview;
+        }).catch(function (e) { toolErr(m, e); });
+      };
+      on('.nd', 'change', save); on('.nn', 'change', save);
+      on('#ngo', 'click', function () {
+        var b = this, m = document.getElementById('nmsg');
+        twoTap(b, 'Tap again to record (NCNS emails go out)', function () {
+          b.disabled = true; m.className = 'small'; m.textContent = 'Recording…';
+          call('adminNoShowRecord', adminReq({})).then(function (x) { toolNoShows(x.text); }).catch(function (e) { b.disabled = false; toolErr(m, e); });
+        });
       });
     }).catch(adminFail);
   }
