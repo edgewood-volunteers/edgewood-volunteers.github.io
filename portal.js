@@ -725,14 +725,15 @@
   function adminToolsHome() {
     adminUrl({ tool: 'home' }); state.page = 'Portal admin tools';
     h(adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="tback">← Back</button><b>Hub tools</b><span></span></div>' +
-      '<p class="small muted">Jobs from the Hub spreadsheet\'s menu. You see the ones your admin level can use.</p><div id="htools"><div class="spin"></div></div></div>' + footer());
+      '<p class="small muted">Jobs from the Hub spreadsheet\'s menu. You see the ones your admin level can use. Counts are kept 2 minutes; <a href="#" id="toolsrefresh">refresh now</a>.</p><div id="htools"><div class="spin"></div></div></div>' + footer());
     wireAdminBar(); on('#tback', 'click', adminSearch);
     adminToolsCard();
+    on('#toolsrefresh', 'click', function (e) { e.preventDefault(); homeC(true); adminToolsHome(); });
   }
   /** The list of tools this admin's level can use (on the Hub tools screen). */
   function adminToolsCard() {
     var el = document.getElementById('htools'); if (!el) return;
-    call('adminTools', adminReq({})).then(function (r) {
+    homeCall('adminTools').then(function (r) {   // Nov 14: kept 2 minutes like the admin home lists; any admin change clears it
       TOOLS = r; adminLevelSet(r);
       var L = r.level || 4, b = [];
       var add = function (lv, id, label, n, sub) { if (L >= lv) b.push('<button class="hit" id="' + id + '"><b>' + label + (n ? ' <span style="background:#b91c1c;color:#fff;border-radius:10px;padding:1px 8px;font-size:12px">' + n + '</span>' : '') + '</b><div class="small muted">' + sub + '</div></button>'); };
