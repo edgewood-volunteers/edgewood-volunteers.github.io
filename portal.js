@@ -119,6 +119,7 @@
   }
   function call(action, body) {
     body = body || {}; body.action = action;
+    if (/^admin|^stand(Submit|Save)/.test(action) && !/^admin(HubGames|SuGames|Stands|Search|View|HubRoster|SuRoster|Tools|Health|Google|NoShows|Family|StandForm|CancelOptions|DocFile|DocQueue|LogStands|SheetList|WalkInStands)$/.test(action)) { try { window.__hubHomeC = {}; } catch (e) {} }   // Nov 14: a change makes the admin home reload its lists
     body._c = { page: state.page, ua: navigator.userAgent, tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || ''), scr: screen.width + 'x' + screen.height, lang: navigator.language || '', sid: SID };
     return fetch(API, { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok) throw new Error(j.error || 'Something went wrong.');
@@ -155,6 +156,7 @@
       if (r0 && d0) return adminRoster(r0, d0);
       if (s0 && d0) return adminSuRoster(s0, d0);
       if (qs.get('day')) return adminDay(qs.get('day'));
+      if (qs.get('find')) return adminFind();
       return adminSearch();
     }
     return adminStart();
@@ -636,39 +638,35 @@
   function adminBar() {
     var a = adminSess() || {};
     return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">' + esc(a.name || '') + (a.levelName ? ' · <span id="admlvl">' + esc(a.levelName) + '</span>' : '') + ' · every lookup and change is logged</div></div>' +
-      '<div class="pills"><a class="pill" href="' + location.pathname + '" style="text-decoration:none">My dashboard</a><button class="pill" id="adms">Search</button><button class="pill" id="admt">Hub tools</button><button class="pill" id="admd">Directory</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
+      '<div class="pills"><a class="pill" href="' + location.pathname + '" style="text-decoration:none">My dashboard</a><button class="pill" id="adms">Admin home</button><button class="pill" id="admf">Find a volunteer</button><button class="pill" id="admt">Hub tools</button><button class="pill" id="admd">Directory</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
   }
   function wireAdminBar() {
     on('#adms', 'click', adminSearch);
+    on('#admf', 'click', function () { adminFind(); });
     on('#admt', 'click', adminToolsHome);
     on('#admd', 'click', function () { try { history.replaceState(null, '', location.pathname + '?view=directory'); } catch (e) {} dirView(); });
-    on('#admx', 'click', function () { adminLeaveUrl(); state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home(); });
+    on('#admx', 'click', function () { homeC(true); adminLeaveUrl(); state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home(); });
     on('#admo', 'click', function () {
       var a = adminSess(); try { localStorage.removeItem(ADMIN); } catch (x) {}
       if (a) call('adminSignOut', { adminSession: a.session }).catch(function () {});
-      adminLeaveUrl(); state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home();
+      homeC(true); adminLeaveUrl(); state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home();
     });
   }
-  function adminSearch() {
-    adminUrl();
-    h(adminBar() + '<div class="cols"><div class="card"><h2>Look up a volunteer</h2><input id="q" placeholder="Name, email, or phone number"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' +
-      '<div class="card"><h2>Stands (last 3 days)</h2><div id="stands"><div class="spin"></div></div></div>' +
-      '<div class="card wide"><h2>Hub games</h2><p class="small muted">Rosters: move, remove, add or hand off. Every change is stamped and logged.</p><div id="hubgames"><div class="spin"></div></div></div>' +
-      '<div class="card wide"><h2>SignUp.com games</h2><p class="small muted">Who is working each stand, with group-text buttons. Changes still happen on SignUp.com.</p><div id="sugames"><div class="spin"></div></div></div></div>' + footer());
-    wireAdminBar();
-    adminHubList();
-    adminSuList();
-    call('adminStands', adminReq({})).then(function (r) {
-      var el = document.getElementById('stands'); if (!el) return;
-      if (!r.stands.length) { el.innerHTML = '<p class="muted">No stands today or in the last 2 days.</p>'; return; }
-      var day = '';
-      el.innerHTML = r.stands.map(function (x) {
-        var head = x.date !== day ? '<div class="small muted" style="margin-top:8px"><b>' + (x.today ? 'Today · ' : '') + esc(x.date) + '</b></div>' : ''; day = x.date;
-        return head + '<div class="hrow"><span><b>' + esc(x.stand) + '</b>' + (x.event ? ' · ' + esc(x.event) : '') +
-          '<div class="small muted">' + (x.chair ? 'Lead ' + esc(x.chair) + ' · ' : '') + esc(x.status) + (x.submittedBy ? ' · by ' + esc(x.submittedBy) : '') + '</div></span>' +
-          (x.act ? '<a class="btn sm" href="' + esc(toSite(x.act)) + '">Time sheet</a>' : x.view ? '' : '<span class="small muted">approved</span>') + '</div>';
-      }).join('');
-    }).catch(function (e) { var el = document.getElementById('stands'); if (/expired|sign in with google/i.test(e.message)) return adminFail(e); if (el) el.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
+  /** Nov 14 (Nick): the admin home's lists come back instantly. Each list's answer is kept for 2 minutes; going back to the
+   *  admin home within that time redraws from memory instead of asking the Hub again. "Refresh" on the home forces a reload. */
+  // A function, not a var: the router near the top returns before a var placed here would be set.
+  function homeC(clear) { if (clear || !window.__hubHomeC) window.__hubHomeC = {}; return window.__hubHomeC; }
+  function homeCall(action) {
+    var c = homeC()[action];
+    if (c && Date.now() - c.at < 120000) return Promise.resolve(c.r);
+    return call(action, adminReq({})).then(function (r) { homeC()[action] = { r: r, at: Date.now() }; return r; });
+  }
+  /** People search on its own screen (was a card on the admin home). */
+  function adminFind(q0) {
+    adminUrl({ find: '1' }); state.page = 'Portal admin find';
+    h(adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="fback">← Admin home</button><b>Find a volunteer</b><span></span></div>' +
+      '<input id="q" placeholder="Name, email, or phone number" autocomplete="off"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' + footer());
+    wireAdminBar(); on('#fback', 'click', adminSearch);
     var go = function () {
       var q = document.getElementById('q').value.trim(), msg = document.getElementById('msg'), res = document.getElementById('res');
       msg.textContent = ''; res.innerHTML = '<div class="spin"></div>';
@@ -682,6 +680,31 @@
       }).catch(function (e) { res.innerHTML = ''; if (/expired|sign in with google/i.test(e.message)) return adminFail(e); msg.textContent = e.message; });
     };
     on('#go', 'click', go); on('#q', 'keydown', function (e) { if (e.key === 'Enter') go(); });
+    var qi = document.getElementById('q'); if (q0) { qi.value = q0; go(); } else { try { qi.focus(); } catch (e) {} }
+  }
+  function adminSearch() {
+    adminUrl();
+    h(adminBar() + '<div class="cols"><div class="card"><h2>Find a volunteer</h2><p class="small muted">Look someone up by name, email, or phone number.</p><button class="btn primary" id="gofind">Find a volunteer</button>' +
+      '<p class="small muted" style="margin-top:10px">Lists below are kept for 2 minutes so this page comes back fast. <a href="#" id="homerefresh">Refresh now</a></p></div>' +
+      '<div class="card"><h2>Stands (last 3 days)</h2><div id="stands"><div class="spin"></div></div></div>' +
+      '<div class="card wide"><h2>Hub games</h2><p class="small muted">Rosters: move, remove, add or hand off. Every change is stamped and logged.</p><div id="hubgames"><div class="spin"></div></div></div>' +
+      '<div class="card wide"><h2>SignUp.com games</h2><p class="small muted">Who is working each stand, with group-text buttons. Changes still happen on SignUp.com.</p><div id="sugames"><div class="spin"></div></div></div></div>' + footer());
+    wireAdminBar();
+    on('#gofind', 'click', function () { adminFind(); });
+    on('#homerefresh', 'click', function (e) { e.preventDefault(); homeC(true); adminSearch(); });
+    adminHubList();
+    adminSuList();
+    homeCall('adminStands').then(function (r) {
+      var el = document.getElementById('stands'); if (!el) return;
+      if (!r.stands.length) { el.innerHTML = '<p class="muted">No stands today or in the last 2 days.</p>'; return; }
+      var day = '';
+      el.innerHTML = r.stands.map(function (x) {
+        var head = x.date !== day ? '<div class="small muted" style="margin-top:8px"><b>' + (x.today ? 'Today · ' : '') + esc(x.date) + '</b></div>' : ''; day = x.date;
+        return head + '<div class="hrow"><span><b>' + esc(x.stand) + '</b>' + (x.event ? ' · ' + esc(x.event) : '') +
+          '<div class="small muted">' + (x.chair ? 'Lead ' + esc(x.chair) + ' · ' : '') + esc(x.status) + (x.submittedBy ? ' · by ' + esc(x.submittedBy) : '') + '</div></span>' +
+          (x.act ? '<a class="btn sm" href="' + esc(toSite(x.act)) + '">Time sheet</a>' : x.view ? '' : '<span class="small muted">approved</span>') + '</div>';
+      }).join('');
+    }).catch(function (e) { var el = document.getElementById('stands'); if (/expired|sign in with google/i.test(e.message)) return adminFail(e); if (el) el.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
   }
   // ---------- admin: Hub tools (section 34 on the Hub). Menu jobs from the Hub spreadsheet, by admin level.
   var TOOLS = null;
@@ -1223,7 +1246,7 @@
   // ---------- admin: Hub game rosters (section 24d on the Hub). Move / Remove / Add / Hand off; every action is stamped and logged.
   function adminHubList() {
     var el = document.getElementById('hubgames'); if (!el) return;
-    call('adminHubGames', adminReq({})).then(function (r) {
+    homeCall('adminHubGames').then(function (r) {
       adminLevelSet(r);
       state.canManage = !!r.manage && adminLevel() >= 3;   // Hubs with section 32 (Manage stands in the admin view); Manager and up
       var mb = state.canManage ? '<button class="btn primary" id="mstands" style="margin:0 0 8px">Manage stands: create or edit a Hub game</button>' : '';
@@ -1240,7 +1263,7 @@
   // ---------- admin: SignUp.com games (section 29 on the Hub). Read only: who is on each stand, plus Reach out.
   function adminSuList() {
     var el = document.getElementById('sugames'); if (!el) return;
-    call('adminSuGames', adminReq({})).then(function (r) {
+    homeCall('adminSuGames').then(function (r) {
       if (!r.games.length) { el.innerHTML = '<p class="muted">No SignUp.com games from the last 2 days on.</p>'; return; }
       var show = function (all) {
         var list = all ? r.games : r.games.slice(0, 8), per = {}, seenDay = {};
