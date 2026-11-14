@@ -1172,7 +1172,8 @@
       var lockO = (r.lockOpts || []).map(function (h) { return '<option value="' + h + '">' + (h ? h + ' hours before start' : 'No lock') + '</option>'; }).join('');
       h(adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="msback">← Back</button><b>Manage stands</b><span></span></div>' +
         '<p class="small muted">Create a Hub game and its stands, or open one to change it. Every save is logged with your name.</p>' +
-        '<select id="msgames"></select><button class="btn" id="msnew">+ New game</button>' +
+        '<select id="msgames"></select><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn" id="msnew" style="width:auto">+ New game</button>' +
+        '<select id="msgt" style="flex:1;min-width:180px;margin:0"></select><button class="btn sm" id="mscopy" style="display:none;width:auto">Copy this game</button></div>' +
         '<p id="msmode" style="font-weight:700;color:#0b2545;margin:12px 0 0"></p><p class="ok" id="msflash" style="font-weight:700"></p></div>' +
         '<div class="card"><h2>The game</h2><label class="mslab">Event name<input id="msev" maxlength="60" placeholder="IU Football vs Purdue"></label>' +
         '<label class="mslab">Game date<input type="date" id="msdt"></label>' +
@@ -1186,11 +1187,21 @@
         '<label class="mslab">Notes for this game (volunteers see them on the board)<textarea id="msnt" maxlength="5000" placeholder="Parking, where to check in, what to wear…"></textarea></label></div>' +
         '<div class="card"><h2>Stands</h2><p class="small muted" id="mshint"></p><datalist id="mspl"></datalist><div id="msstands"></div><button class="btn" id="msadd">+ Add stand</button>' +
         '<div class="msfoot"><div class="small" id="mssum" style="font-weight:700;color:#0b2545"></div><button class="btn primary" id="msgo"></button><p class="small" id="msmsg"></p>' +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" id="mssend">Send updates now</button><button class="btn sm" id="msdel" style="color:#b91c1c;border-color:#b91c1c;display:none">Delete this game</button></div></div></div>' + footer());
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" id="mssend">Send updates now</button><button class="btn sm" id="msgsv">Save game as template</button><button class="btn sm" id="msdel" style="color:#b91c1c;border-color:#b91c1c;display:none">Delete this game</button></div>' +
+        '<div id="msgtbox" style="display:none;margin-top:10px;padding:10px 12px;border:1px solid #d6dde6;border-radius:10px">' +
+        '<b>Save this whole game as a template</b><p class="small muted" style="margin:4px 0 8px">Saves every stand, position, stand note, the game notes, the lock and the stand hours (times are kept relative to stands open, so it fits any game). Same name = replaces it.</p>' +
+        '<div style="display:flex;gap:6px"><input id="msgtn" maxlength="40" placeholder="Template name, like Football (all stands)" style="flex:1;margin:0"><button class="btn sm" id="msgtgo" style="width:auto">Save</button><button class="msx" id="msgtx">✕</button></div>' +
+        '<div id="msgtlist" class="small" style="margin-top:8px"></div></div></div></div>' + footer());
       wireAdminBar();
       (r.positions || []).forEach(function (p) { var o = document.createElement('option'); o.value = p.name; msQ('#mspl').appendChild(o); });
       on('#msback', 'click', adminSearch);
       on('#msnew', 'click', function () { msNew(); });
+      on('#msgt', 'change', function () { var k = this.value; this.value = ''; if (k) msFromTpl(k); });
+      on('#mscopy', 'click', msCopy);
+      on('#msgsv', 'click', function () { var b = msQ('#msgtbox'); b.style.display = b.style.display === 'none' ? '' : 'none'; if (b.style.display === '') { msGtList(); msQ('#msgtn').focus(); } });
+      on('#msgtx', 'click', function () { msQ('#msgtbox').style.display = 'none'; });
+      on('#msgtgo', 'click', msGtSave);
+      msGtOpts();
       on('#msgames', 'change', function () { var i = this.value; if (i !== '') msLoad(MS.data.games[Number(i)]); });
       on('#mstbd', 'change', msTbd);
       on('#msoa', 'change', function () { msQ('#msgl').disabled = !this.checked; });
@@ -1211,20 +1222,21 @@
   }
   function msMode() {
     var o = MS.orig;
-    msQ('#msmode').textContent = o ? 'Editing ' + o.label : 'New game';
+    msQ('#msmode').textContent = o ? 'Editing ' + o.label : (MS.from ? 'New game · ' + MS.from : 'New game');
+    msQ('#mscopy').style.display = o ? '' : 'none';
     msQ('#msgo').textContent = o ? 'Save changes' : 'Create the game';
     msQ('#msdel').style.display = o ? '' : 'none'; msDisarm();
     msQ('#mshint').textContent = o ? 'Saving rewrites changed positions and deletes stands you removed. People already signed up are protected: their position can grow but not shrink below them, and the name and date can\'t change.'
       : 'Each stand gets a short code (like 1W or SE) and its positions. Start from layout fills in a saved set of positions.';
   }
   function msNew() {
-    MS.orig = null; msQ('#msstands').innerHTML = ''; msQ('#msmsg').textContent = '';
+    MS.orig = null; MS.from = ''; msQ('#msstands').innerHTML = ''; msQ('#msmsg').textContent = '';
     msQ('#msev').value = ''; msQ('#msdt').value = ''; msQ('#msop').value = '10:30'; msQ('#mscl').value = '16:00'; msQ('#mstbd').checked = false;
     msQ('#msoa').checked = false; msQ('#msgl').value = ''; msQ('#msgl').disabled = true; msQ('#mslk').value = String(MS.data.lockDefault); msQ('#msst').value = 'Auto'; msQ('#msnt').value = '';
     msFillGames(); msStand('', null, '', true); msTbd(); msMode(); adminUrl({ ms: '1' });
   }
   function msLoad(g) {
-    MS.orig = { event: g.event, date: g.date, codes: g.stands.map(function (s) { return s.code; }), label: g.label };
+    MS.from = ''; MS.orig = { event: g.event, date: g.date, codes: g.stands.map(function (s) { return s.code; }), label: g.label };
     msQ('#msstands').innerHTML = ''; msQ('#msmsg').textContent = '';
     msQ('#msev').value = g.event; msQ('#msdt').value = g.date; msQ('#msop').value = g.opens; msQ('#mscl').value = g.closes; msQ('#mstbd').checked = !!g.tbd;
     msQ('#msoa').checked = !!g.goesLive; msQ('#msgl').value = g.goesLive || ''; msQ('#msgl').disabled = !g.goesLive;
@@ -1232,6 +1244,61 @@
     g.stands.forEach(function (s) { msStand(s.code, s.positions, (g.standNotes || {})[s.code] || '', true); });
     var i = MS.data.games.indexOf(g); msFillGames(i >= 0 ? i : null);
     msTbd(); msMode(); msSum(); adminUrl({ ms: '1', ev: g.event, d: g.date });
+  }
+  /** Nov 14 (Nick): copy a whole game, and whole-game templates (Game templates tab). */
+  function msGtOpts() {
+    var T = MS.data.gtpl || {}, k = Object.keys(T);
+    msQ('#msgt').innerHTML = '<option value="">' + (k.length ? 'New game from template…' : 'No game templates yet') + '</option>' +
+      k.map(function (x) { return '<option value="' + esc(x) + '">' + esc(T[x].name) + ' (' + T[x].stands.length + ' stand' + (T[x].stands.length === 1 ? '' : 's') + ')</option>'; }).join('');
+    msQ('#msgt').disabled = !k.length;
+  }
+  function msFromTpl(k) {
+    var t = (MS.data.gtpl || {})[k]; if (!t) return;
+    msNew(); msQ('#msstands').innerHTML = '';
+    var tbd = t.close == null;
+    if (!tbd && t.opens != null && t.opens !== '') msQ('#msop').value = msHm(Number(t.opens));
+    var op = msMin(msQ('#msop').value);
+    msQ('#mstbd').checked = tbd;
+    if (!tbd) msQ('#mscl').value = msHm(op + t.close);
+    if (t.lockHours !== '' && t.lockHours != null) msQ('#mslk').value = String(t.lockHours);
+    msQ('#msnt').value = t.notes || '';
+    t.stands.forEach(function (st) {
+      msStand(st.code, st.rows.map(function (r) {
+        var x = { name: r.name, count: r.count, permit: r.permit, lead: r.lead };
+        if (!tbd && r.so != null && r.eo != null) { x.diff = true; x.start = msHm(op + r.so); x.end = msHm(op + r.eo); }
+        return x;
+      }), st.note || '', true);
+    });
+    MS.from = 'from template "' + t.name + '"'; msTbd(); msMode(); msSum();
+    msMsg('Filled in from "' + t.name + '". Give it a name and date, check the times, then Create the game.', 'ok'); msQ('#msev').focus();
+  }
+  function msCopy() {
+    if (!MS.orig) return;
+    var lbl = MS.orig.label; MS.orig = null; MS.from = 'copy of ' + lbl;
+    msQ('#msdt').value = ''; msQ('#msoa').checked = false; msQ('#msgl').value = ''; msQ('#msgl').disabled = true; msQ('#msst').value = 'Auto';
+    msFillGames(); msMode(); msSum(); adminUrl({ ms: '1' }); window.scrollTo(0, 0);
+    msMsg('Copied. Nothing is saved yet: change the name or date, then Create the game. Nobody signed up comes along.', 'ok'); msQ('#msdt').focus();
+  }
+  function msGtList() {
+    var T = MS.data.gtpl || {}, k = Object.keys(T);
+    msQ('#msgtlist').innerHTML = k.length ? 'Saved templates: ' + k.map(function (x) {
+      return '<span style="display:inline-flex;align-items:center;gap:2px;margin:2px 8px 2px 0">' + esc(T[x].name) + ' <button class="msx msgtd" data-k="' + esc(x) + '" title="Delete this template">✕</button></span>'; }).join('') : '';
+    msAll('.msgtd').forEach(function (b) {
+      b.onclick = function () {
+        var k = this.getAttribute('data-k'), nm = (MS.data.gtpl[k] || {}).name || k;
+        if (!this.classList.contains('arm')) { this.classList.add('arm'); this.textContent = 'Tap again to delete'; this.style.color = '#b91c1c'; return; }
+        call('adminGameTplDelete', adminReq({ name: nm })).then(function (t) { MS.data.gtpl = t; msGtOpts(); msGtList(); msMsg('Deleted template "' + nm + '".', 'ok'); })
+          .catch(function (e) { if (/expired|sign in with google/i.test(e.message)) return adminFail(e); msMsg(e.message, 'err'); });
+      };
+    });
+  }
+  function msGtSave() {
+    var n = msQ('#msgtn').value.trim(), b = msQ('#msgtgo'); if (!n) return msMsg('Name the template first.', 'err');
+    b.disabled = true;
+    call('adminGameTplSave', adminReq({ name: n, game: msCollect() })).then(function (t) {
+      b.disabled = false; MS.data.gtpl = t; msGtOpts(); msGtList(); msQ('#msgtn').value = '';
+      msMsg('Saved template "' + n + '". It is in New game from template now.', 'ok');
+    }).catch(function (e) { b.disabled = false; if (/expired|sign in with google/i.test(e.message)) return adminFail(e); msMsg(e.message, 'err'); });
   }
   function msTbd() {
     var t = msQ('#mstbd').checked; msQ('#msop').disabled = t; msQ('#mscl').disabled = t;
