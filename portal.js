@@ -408,6 +408,7 @@
   }
   function footer() {
     var help = (state.data && state.data.help) || window.HUB_HELP || '';
+    if (!help || /sites\.google\.com/.test(help)) help = '/help/';   // Nov 14: the tutorials on this site (the old Google Site help page is retired)
     return '<footer>' + (help ? '<a href="' + esc(help) + '" target="_blank" rel="noopener">Help and how-to guides</a><br>' : '') +
       'Questions about shifts, stands or paperwork: <a href="mailto:' + LIAISON + '">email the IU liaison</a>.<br>' +
       'Website or technical problems: <a href="mailto:' + TECH + '">Nick Ely, tech support</a>.<br>' +
