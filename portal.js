@@ -149,6 +149,8 @@
     if (adminSess()) {
       state.admin = true;
       if (p0) return adminView(p0);
+      var t0 = qs.get('tool'), T0 = { review: toolReview, family: toolFamily, cancel: toolCancel, sheets: toolSheets, walkin: toolWalkIn, health: toolHealth };
+      if (t0 && T0[t0]) return T0[t0]();
       if (qs.get('ms')) { state.canManage = adminLevel() >= 3; return adminManage(qs.get('ev') || '', d0); }
       if (r0 && d0) return adminRoster(r0, d0);
       if (s0 && d0) return adminSuRoster(s0, d0);
@@ -477,7 +479,7 @@
       (codes().length > 1 ? ' · <a href="#" id="forgetall">Forget everyone on this device</a>' : '') + '</div>';
     out += footer();
     h(out);
-    if (!asAdmin) wireHeader(); else wireAdminBar();
+    if (!asAdmin) wireHeader(); else { wireAdminBar(); toolPersonWire(d.adminView || {}); }
     on('#cal', 'click', function () { calendar(d, asAdmin); });
     on('#hist', 'click', function () { history_(d, asAdmin); });
     on('#leave', 'click', function (e) { e.preventDefault(); var en = activeEntry() || {}; leaveFlow(en.code ? { code: en.code } : { email: en.email }, function () { renderHome(d, false); }); });
@@ -649,10 +651,12 @@
   function adminSearch() {
     adminUrl();
     h(adminBar() + '<div class="cols"><div class="card"><h2>Look up a volunteer</h2><input id="q" placeholder="Name, email, or phone number"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' +
+      '<div class="card"><h2>Hub tools</h2><div id="htools"><div class="spin"></div></div></div>' +
       '<div class="card"><h2>Stands (last 3 days)</h2><div id="stands"><div class="spin"></div></div></div>' +
       '<div class="card wide"><h2>Hub games</h2><p class="small muted">Rosters: move, remove, add or hand off. Every change is stamped and logged.</p><div id="hubgames"><div class="spin"></div></div></div>' +
       '<div class="card wide"><h2>SignUp.com games</h2><p class="small muted">Who is working each stand, with group-text buttons. Changes still happen on SignUp.com.</p><div id="sugames"><div class="spin"></div></div></div></div>' + footer());
     wireAdminBar();
+    adminToolsCard();
     adminHubList();
     adminSuList();
     call('adminStands', adminReq({})).then(function (r) {
@@ -679,6 +683,244 @@
       }).catch(function (e) { res.innerHTML = ''; if (/expired|sign in with google/i.test(e.message)) return adminFail(e); msg.textContent = e.message; });
     };
     on('#go', 'click', go); on('#q', 'keydown', function (e) { if (e.key === 'Enter') go(); });
+  }
+  // ---------- admin: Hub tools (section 34 on the Hub). Menu jobs from the Hub spreadsheet, by admin level.
+  var TOOLS = null;
+  function toolErr(el, e) { if (/expired|sign in with google/i.test(e.message)) return adminFail(e); if (el) { el.textContent = e.message; el.className = 'err'; } }
+  function toolHead(title, sub) {
+    return adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="tback">← Back</button><b>' + esc(title) + '</b><span></span></div>' +
+      (sub ? '<p class="small muted">' + sub + '</p>' : '') + '<p id="tmsg" class="ok" style="font-weight:700"></p></div>';
+  }
+  function toolWire() { wireAdminBar(); on('#tback', 'click', adminSearch); }
+  function toolMsg(t, c) { var m = document.getElementById('tmsg'); if (!m) return; m.textContent = t || ''; m.className = c || 'ok'; m.style.fontWeight = '700'; }
+  /** Two taps for anything that sends email or can't be undone. */
+  function twoTap(btn, label, go) {
+    if (btn.getAttribute('data-arm')) { btn.removeAttribute('data-arm'); btn.textContent = btn.getAttribute('data-was'); go(); return; }
+    btn.setAttribute('data-arm', '1'); btn.setAttribute('data-was', btn.textContent); btn.textContent = label;
+    setTimeout(function () { if (btn.getAttribute('data-arm')) { btn.removeAttribute('data-arm'); btn.textContent = btn.getAttribute('data-was'); } }, 5000);
+  }
+  /** Admin home card: the tools this admin's level can use. */
+  function adminToolsCard() {
+    var el = document.getElementById('htools'); if (!el) return;
+    call('adminTools', adminReq({})).then(function (r) {
+      TOOLS = r; adminLevelSet(r);
+      var L = r.level || 4, b = [];
+      var add = function (lv, id, label, n, sub) { if (L >= lv) b.push('<button class="hit" id="' + id + '"><b>' + label + (n ? ' <span style="background:#b91c1c;color:#fff;border-radius:10px;padding:1px 8px;font-size:12px">' + n + '</span>' : '') + '</b><div class="small muted">' + sub + '</div></button>'); };
+      add(3, 'tl_review', 'Paperwork to review', r.review, 'Check new documents: OK, needs fix, or rejected');
+      add(3, 'tl_family', 'Family manager requests', r.family, 'Approve or decline');
+      add(2, 'tl_sheets', 'Send stand sheets', 0, 'Email stand leads their stand link and sign-in sheet');
+      add(2, 'tl_walkin', 'Add a worker by hand', 0, 'Someone working a stand who isn\'t signed up');
+      add(3, 'tl_cancel', 'Cancel a stand or game', 0, 'Weather, IU or Levy changes; emails who is signed up');
+      add(4, 'tl_health', 'Hub health', r.health, r.health ? 'Things to look at' : 'Safety breakers, email, daily checks');
+      if (!b.length) { el.parentNode.style.display = 'none'; return; }
+      el.innerHTML = b.join('');
+      on('#tl_review', 'click', function () { toolReview(); });
+      on('#tl_family', 'click', toolFamily);
+      on('#tl_sheets', 'click', toolSheets);
+      on('#tl_walkin', 'click', toolWalkIn);
+      on('#tl_cancel', 'click', toolCancel);
+      on('#tl_health', 'click', toolHealth);
+    }).catch(function (e) {
+      if (/expired|sign in with google/i.test(e.message)) return adminFail(e);
+      el.parentNode.style.display = 'none';   // an older Hub without section 34
+    });
+  }
+  // --- paperwork review
+  var REV = null;
+  function toolReview(flash) {
+    adminUrl({ tool: 'review' }); spinner('Loading paperwork to review…');
+    call('adminDocQueue', adminReq({})).then(function (r) {
+      REV = r;
+      var o = toolHead('Paperwork to review', r.docs.length + ' waiting, oldest first. The volunteer sees your decision (and the reason) on their page.');
+      o += '<div class="card">' + (r.docs.length ? r.docs.map(function (x, i) {
+        return '<button class="hit rv" data-i="' + i + '"><b>' + esc(x.person) + '</b>' + (x.minor ? ' <span class="small muted">(minor)</span>' : '') +
+          '<div class="small muted">' + esc(x.type || 'Type not set') + ' · ' + esc(x.source) + ' · ' + esc(x.added) + '</div></button>';
+      }).join('') : '<p class="muted">Nothing waiting. Nice.</p>') + '</div>';
+      h(o + footer()); toolWire(); if (flash) toolMsg(flash);
+      on('.rv', 'click', function () { toolReviewOne(Number(this.getAttribute('data-i'))); });
+    }).catch(adminFail);
+  }
+  function toolReviewOne(i) {
+    var x = REV.docs[i]; if (!x) return toolReview();
+    adminUrl({ tool: 'review' });
+    var types = REV.types.map(function (t) { return '<option' + (t === x.type ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('');
+    var o = toolHead(x.person, esc(x.source) + ' · received ' + esc(x.added) + (x.note ? '<br>' + esc(x.note) : ''));
+    o += '<div class="card"><h2>The file</h2>' + (x.files.length ? x.files.map(function (f) { return '<button class="btn rf" data-n="' + f.n + '">Show file' + (x.files.length > 1 ? ' ' + f.n : '') + '</button>'; }).join('') : '<p class="err">No file came with this one.</p>') +
+      '<div id="rprev" style="margin-top:8px"></div></div>' +
+      '<div class="card"><h2>Check the details</h2><label class="small">Document type<select id="rtype"><option value="">Pick…</option>' + types + '</select></label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="small">Date (signed or completed)<input type="date" id="rdate" value="' + esc(x.date) + '"></label>' +
+      '<label class="small">Expires<input type="date" id="rexp" value="' + esc(x.expires) + '"></label></div>' +
+      '<label class="small">Permit number (ATC permit only)<input id="rnum" value="' + esc(x.number) + '" placeholder="VB…"></label>' +
+      '<p class="small muted">Levy documents get Levy\'s contract date if Expires is blank.</p>' +
+      '<button class="btn primary" id="rok" style="background:#15803d;border-color:#15803d">OK: it counts</button>' +
+      '<label class="small" style="display:block;margin-top:12px">Reason (needed for Needs fix or Rejected; the volunteer sees it)<textarea id="rwhy" maxlength="300" placeholder="Signature missing on page 8"></textarea></label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn" id="rfix">Needs fix</button><button class="btn" id="rrej" style="color:#b91c1c;border-color:#b91c1c">Rejected</button></div>' +
+      '<p id="rmsg" class="small"></p>' + (i + 1 < REV.docs.length ? '<button class="btn sm" id="rskip" style="margin-top:6px">Skip to the next one</button>' : '') + '</div>';
+    h(o + footer()); wireAdminBar(); on('#tback', 'click', function () { toolReview(); });
+    on('.rf', 'click', function () {
+      var b = this, pv = document.getElementById('rprev'); b.disabled = true; pv.innerHTML = '<div class="spin"></div>';
+      call('adminDocFile', adminReq({ id: x.id, n: Number(b.getAttribute('data-n')) })).then(function (f) {
+        b.disabled = false;
+        if (f.big) { pv.innerHTML = '<p class="small">Too big to show here. <a href="' + esc(f.url) + '" target="_blank" rel="noopener">Open it in Drive</a></p>'; return; }
+        var bin = atob(f.data), u8 = new Uint8Array(bin.length); for (var k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+        var url = URL.createObjectURL(new Blob([u8], { type: f.mime }));
+        pv.innerHTML = (/^image\//.test(f.mime) ? '<img src="' + url + '" style="width:100%;border:1px solid #e2e8f0;border-radius:8px">' :
+          /pdf/.test(f.mime) ? '<iframe src="' + url + '" style="width:100%;height:70vh;border:1px solid #e2e8f0;border-radius:8px"></iframe>' : '') +
+          '<p class="small"><a href="' + url + '" target="_blank" rel="noopener">Open full size</a> · <a href="' + esc(f.url) + '" target="_blank" rel="noopener">Open in Drive</a> · ' + esc(f.name) + '</p>';
+      }).catch(function (e) { b.disabled = false; pv.innerHTML = ''; toolErr(document.getElementById('rmsg'), e); });
+    });
+    var send = function (act, btn) {
+      var m = document.getElementById('rmsg'); m.className = 'small'; m.textContent = 'Saving…'; btn.disabled = true;
+      call('adminDocReview', adminReq({ id: x.id, review: act, reason: document.getElementById('rwhy').value, type: document.getElementById('rtype').value,
+        date: document.getElementById('rdate').value, expires: document.getElementById('rexp').value, number: document.getElementById('rnum').value })).then(function (r) {
+        REV.docs.splice(i, 1);
+        var t = x.person + ': ' + (x.type || document.getElementById('rtype').value) + ' marked ' + r.word + '.';
+        if (REV.docs[i]) { toolReviewOne(i); toolMsg(t); } else if (REV.docs.length) { toolReviewOne(0); toolMsg(t); } else toolReview(t);
+      }).catch(function (e) { btn.disabled = false; toolErr(m, e); });
+    };
+    on('#rok', 'click', function () { send('ok', this); });
+    on('#rfix', 'click', function () { send('fix', this); });
+    on('#rrej', 'click', function () { send('rejected', this); });
+    on('#rskip', 'click', function () { toolReviewOne(i + 1); });
+  }
+  // --- family manager requests
+  function toolFamily(flash) {
+    adminUrl({ tool: 'family' }); spinner('Loading requests…');
+    call('adminFamily', adminReq({})).then(function (r) {
+      var o = toolHead('Family manager requests', 'A family manager will decide how the family\'s share of volunteer credit is split between their students when payouts start. One per family.');
+      o += '<div class="card">' + (r.requests.length ? r.requests.map(function (x) {
+        return '<div class="hrow" style="flex-wrap:wrap"><span><b>' + esc(x.name) + '</b><div class="small muted">' + esc(x.email) + '</div><div class="small">Students: ' + esc(x.students || '(none listed)') + '</div>' +
+          '<div class="small muted">' + esc(x.request) + '</div></span><span style="display:flex;gap:6px"><button class="btn sm primary fy" data-p="' + esc(x.pid) + '">Approve</button>' +
+          '<button class="btn sm fn" data-p="' + esc(x.pid) + '">Decline</button></span></div>';
+      }).join('') : '<p class="muted">No open requests.</p>') + '<p id="fmsg" class="small"></p></div>';
+      h(o + footer()); toolWire(); if (typeof flash === 'string') toolMsg(flash);
+      var go = function (pid, yes, btn) {
+        btn.disabled = true;
+        call('adminFamilyDo', adminReq({ pid: pid, approve: yes })).then(function (x) { toolFamily(x.text); })
+          .catch(function (e) { btn.disabled = false; toolErr(document.getElementById('fmsg'), e); });
+      };
+      on('.fy', 'click', function () { go(this.getAttribute('data-p'), true, this); });
+      on('.fn', 'click', function () { var b = this; twoTap(b, 'Tap again to decline', function () { go(b.getAttribute('data-p'), false, b); }); });
+    }).catch(adminFail);
+  }
+  // --- cancel a stand or game
+  function toolCancel(flash) {
+    adminUrl({ tool: 'cancel' }); spinner('Loading games…');
+    call('adminCancelOptions', adminReq({})).then(function (r) {
+      var o = toolHead('Cancel a stand or game', 'Canceled shifts are logged as Excused, so they never count against anyone.');
+      o += '<div class="card"><label class="small">Game<select id="cg"><option value="">Pick a game…</option>' + r.games.map(function (g, i) { return '<option value="' + i + '">' + esc(g.label) + '</option>'; }).join('') + '</select></label>' +
+        '<div id="cst"></div></div>';
+      h(o + footer()); toolWire(); if (typeof flash === 'string') toolMsg(flash);
+      on('#cg', 'change', function () {
+        var g = r.games[Number(this.value)], box = document.getElementById('cst'); if (!g) { box.innerHTML = ''; return; }
+        box.innerHTML = '<p class="small muted" style="margin-top:10px">Pick the stands. Pick them all to cancel the whole game.</p>' + g.stands.map(function (s) {
+          return '<label class="chk"><input type="checkbox" class="cx" value="' + esc(s.id) + '"' + (s.canceled ? ' data-c="1"' : '') + '> <b>' + esc(s.name) + '</b> <span class="small muted">' +
+            (s.chair ? 'lead ' + esc(s.chair) + ' · ' : '') + s.workers + ' worker' + (s.workers === 1 ? '' : 's') + (s.canceled ? ' · <span class="err">canceled</span>' : '') + '</span></label>';
+        }).join('') +
+          '<label class="small">Reason<select id="cr"><option value="">Pick…</option>' + r.reasons.map(function (x) { return '<option>' + esc(x) + '</option>'; }).join('') + '</select></label>' +
+          '<label class="small">Note (optional; goes in the email)<input id="cn" maxlength="200"></label>' +
+          '<label class="chk"><input type="checkbox" id="cm" checked> Email the people signed up</label>' +
+          '<button class="btn danger" id="cgo" style="width:100%">Cancel the checked stands</button>' +
+          '<button class="btn" id="crs">Reinstate the checked stands</button><p id="cmsg" class="small" style="white-space:pre-line"></p>';
+        var ids = function () { return Array.prototype.map.call(root.querySelectorAll('.cx:checked'), function (c) { return c.value; }); };
+        var run = function (restore, btn) {
+          var m = document.getElementById('cmsg'); m.className = 'small'; m.textContent = 'Working…'; btn.disabled = true;
+          call('adminCancel', adminReq({ p: { ids: ids(), reason: document.getElementById('cr').value, note: document.getElementById('cn').value, notify: document.getElementById('cm').checked, restore: restore } }))
+            .then(function (x) { toolCancel(x.text); }).catch(function (e) { btn.disabled = false; toolErr(m, e); });
+        };
+        on('#cgo', 'click', function () { var b = this; if (!ids().length) return toolErr(document.getElementById('cmsg'), new Error('Check at least one stand.')); twoTap(b, 'Tap again to cancel ' + ids().length + ' stand(s)', function () { run(false, b); }); });
+        on('#crs', 'click', function () { var b = this; if (!ids().length) return toolErr(document.getElementById('cmsg'), new Error('Check at least one stand.')); twoTap(b, 'Tap again to reinstate', function () { run(true, b); }); });
+      });
+    }).catch(adminFail);
+  }
+  // --- send stand sheets
+  function toolSheets(flash) {
+    adminUrl({ tool: 'sheets' }); spinner('Loading stands…');
+    call('adminSheetList', adminReq({})).then(function (r) {
+      var o = toolHead('Send stand sheets', 'Emails each stand lead their stand link and a printable sign-in sheet. Stands with no lead send each worker their own time log link. The Hub also sends these on its own schedule; use this to send early or again.');
+      var day = '';
+      o += '<div class="card">' + (r.stands.length ? r.stands.map(function (x) {
+        var hd = x.when !== day ? '<div class="small muted" style="margin-top:8px"><b>' + esc(x.when) + '</b></div>' : ''; day = x.when;
+        return hd + '<label class="chk"><input type="checkbox" class="sx" value="' + esc(x.id) + '"> <b>' + esc(x.stand) + '</b>' + (x.start ? ' ' + esc(x.start) : '') +
+          '<div class="small muted" style="margin-left:24px">To ' + esc(x.to) + ' · ' + esc(x.status || 'Not sent') + '</div></label>';
+      }).join('') + '<button class="btn primary" id="sgo">Send the checked stand sheets</button>' : '<p class="muted">No upcoming stands.</p>') + '<p id="smsg" class="small"></p></div>';
+      h(o + footer()); toolWire(); if (typeof flash === 'string') toolMsg(flash);
+      on('#sgo', 'click', function () {
+        var b = this, ids = Array.prototype.map.call(root.querySelectorAll('.sx:checked'), function (c) { return c.value; }), m = document.getElementById('smsg');
+        if (!ids.length) return toolErr(m, new Error('Check at least one stand.'));
+        twoTap(b, 'Tap again to email ' + ids.length + ' stand sheet(s)', function () {
+          b.disabled = true; m.className = 'small'; m.textContent = 'Sending…';
+          call('adminSheetSend', adminReq({ ids: ids })).then(function (x) { toolSheets(x.text); }).catch(function (e) { b.disabled = false; toolErr(m, e); });
+        });
+      });
+    }).catch(adminFail);
+  }
+  // --- add a worker by hand
+  function toolWalkIn(flash) {
+    adminUrl({ tool: 'walkin' }); spinner('Loading stands…');
+    call('adminWalkInStands', adminReq({})).then(function (r) {
+      var o = toolHead('Add a worker by hand', 'For someone working a stand who isn\'t signed up. They go on the stand\'s list and are matched to their volunteer record (or added as new).');
+      o += '<div class="card"><label class="small">Stand<select id="ws">' + (r.stands.length ? r.stands.map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.label) + '</option>'; }).join('') : '<option value="">No current stands</option>') + '</select></label>' +
+        '<label class="small">Full name<input id="wn" maxlength="80"></label><label class="small">Email (needed for their own time log link)<input id="we" type="email"></label>' +
+        '<label class="small">Phone (optional)<input id="wp" type="tel"></label>' +
+        '<label class="small">Role<select id="wr"><option value="Permit">Adult with permit</option><option value="No permit">No permit (adult or student)</option><option value="Chair">Stand lead</option></select></label>' +
+        '<label class="small">Hours count for (student\'s full name or General fund; optional)<input id="wc" maxlength="80"></label>' +
+        '<button class="btn primary" id="wgo">Add worker</button><p id="wmsg" class="small"></p></div>';
+      h(o + footer()); toolWire(); if (typeof flash === 'string') toolMsg(flash);
+      on('#wgo', 'click', function () {
+        var b = this, m = document.getElementById('wmsg'), v = function (i) { return document.getElementById(i).value; };
+        b.disabled = true; m.className = 'small'; m.textContent = 'Adding…';
+        call('adminWalkIn', adminReq({ w: { id: v('ws'), name: v('wn'), email: v('we'), phone: v('wp'), role: v('wr'), credit: v('wc') } }))
+          .then(function (x) { toolWalkIn(x.text); }).catch(function (e) { b.disabled = false; toolErr(m, e); });
+      });
+    }).catch(adminFail);
+  }
+  // --- Hub health
+  function toolHealth() {
+    adminUrl({ tool: 'health' }); spinner('Checking the Hub…');
+    call('adminHealth', adminReq({})).then(function (r) {
+      var o = toolHead('Hub health', 'Read only. Fixes (resetting the email breaker, approving held changes) stay in the Hub spreadsheet: Admin › Health check + safety breakers.');
+      o += '<div class="card"><div class="hrow"><span>Mode</span><b>' + esc(r.mode || '?') + '</b></div>' +
+        '<div class="hrow"><span>Email breaker</span><b class="' + (r.breaker ? 'err' : 'ok') + '">' + esc(r.breaker || 'off (normal)') + '</b></div>' +
+        '<div class="hrow"><span>Held big changes</span><b>' + r.held + '</b></div>' +
+        '<div class="hrow"><span>Emails left today (Google)</span><b>' + (r.quota == null ? '?' : r.quota) + '</b></div></div>' +
+        '<div class="card"><h2>Health check</h2>' + (r.issues.length ? '<ol style="padding-left:20px">' + r.issues.map(function (x) { return '<li style="margin-bottom:6px">' + esc(x) + '</li>'; }).join('') + '</ol>' : '<p class="ok">All clear.</p>') + '</div>';
+      h(o + footer()); toolWire();
+    }).catch(adminFail);
+  }
+  // --- one volunteer: fix name, email their code, new code (on their admin page)
+  function toolPersonCard(a) {
+    if (!a || !a.pid || !TOOLS || (TOOLS.level || 4) < 2) return '';
+    return '<div class="card wide"><h2>More for this volunteer</h2>' +
+      '<button class="btn" id="vname">Fix their name</button><div id="vnbox" style="display:none">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="small">First (legal)<input id="vf" value="' + esc(a.first) + '"></label><label class="small">Last<input id="vl" value="' + esc(a.last) + '"></label></div>' +
+      '<label class="small">Goes by (optional)<input id="vg" value="' + esc(a.goesBy) + '"></label><button class="btn primary" id="vnsave">Save the name</button>' +
+      '<p class="small muted">Their folder and files are renamed too, and the old name is kept under Also appears as.</p></div>' +
+      '<button class="btn" id="vcode">Email them their code</button>' +
+      '<button class="btn" id="vreset">Give them a new code</button><label class="chk"><input type="checkbox" id="vremail" checked> Email the new code to them</label>' +
+      '<p class="small muted">A new code stops their old code and links right away. Use it if someone else got hold of theirs.</p><p id="vmsg" class="small"></p></div>';
+  }
+  function toolPersonWire(a) {
+    if (!document.getElementById('vname')) return;
+    var m = function () { return document.getElementById('vmsg'); }, pid = a.pid;
+    on('#vname', 'click', function () { var x = document.getElementById('vnbox'); x.style.display = x.style.display === 'none' ? '' : 'none'; });
+    on('#vnsave', 'click', function () {
+      var b = this; b.disabled = true; m().className = 'small'; m().textContent = 'Saving…';
+      call('adminFixName', adminReq({ pid: pid, first: document.getElementById('vf').value, last: document.getElementById('vl').value, goesBy: document.getElementById('vg').value }))
+        .then(function (x) { b.disabled = false; m().className = 'small ok'; m().textContent = x.text; }).catch(function (e) { b.disabled = false; toolErr(m(), e); });
+    });
+    on('#vcode', 'click', function () {
+      var b = this; twoTap(b, 'Tap again to email their code', function () {
+        b.disabled = true; m().className = 'small'; m().textContent = 'Sending…';
+        call('adminSendCode', adminReq({ pid: pid })).then(function (x) { b.disabled = false; m().className = 'small ok'; m().textContent = x.text; }).catch(function (e) { b.disabled = false; toolErr(m(), e); });
+      });
+    });
+    on('#vreset', 'click', function () {
+      var b = this; twoTap(b, 'Tap again: their old code stops working', function () {
+        b.disabled = true; m().className = 'small'; m().textContent = 'Working…';
+        call('adminResetCode', adminReq({ pid: pid, email: document.getElementById('vremail').checked })).then(function (x) { b.disabled = false; m().className = 'small ok'; m().textContent = x.text; }).catch(function (e) { b.disabled = false; toolErr(m(), e); });
+      });
+    });
   }
   // ---------- admin: Manage stands (section 32 on the Hub). The Manage stands dialog from the Hub spreadsheet, for phones.
   // Create a Hub game, add stands and positions (or start from a saved layout), set open / lock, notes; edit or delete it later.
@@ -1321,7 +1563,8 @@
   function adminView(pid) {
     adminUrl({ p: pid });
     spinner('Loading volunteer…');
-    call('adminView', adminReq({ personId: pid })).then(function (d) { state.adminData = d; renderHome(d, true); }).catch(adminFail);
+    var tools = TOOLS ? Promise.resolve(TOOLS) : call('adminTools', adminReq({})).then(function (r) { TOOLS = r; adminLevelSet(r); return r; }).catch(function () { return null; });
+    Promise.all([call('adminView', adminReq({ personId: pid })), tools]).then(function (x) { var d = x[0]; state.adminData = d; renderHome(d, true); }).catch(adminFail);
   }
   function adminCard(d) {
     var a = d.adminView || {};
@@ -1331,6 +1574,6 @@
       '<div class="small">Status: <b>' + esc(a.status) + '</b>' + (a.inactiveReason ? ' — ' + esc(a.inactiveReason) : '') + '</div>' +
       '<div class="small muted">Shirt ' + esc(a.shirt || '—') + ' · Groups ' + esc(a.groups || '—') + ' · Students ' + esc(a.students || '—') + '</div>' +
       (a.actInfo ? '<a class="btn" href="' + esc(toSite(a.actInfo)) + '">Update their info / paperwork (as admin)</a>' : '') +
-      '<div class="small muted">Admin links work while you\'re signed in. Anything you submit is stamped "Admin – your name".</div></div>';
+      '<div class="small muted">Admin links work while you\'re signed in. Anything you submit is stamped "Admin – your name".</div></div>' + toolPersonCard(a);
   }
 })();
