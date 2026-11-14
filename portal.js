@@ -7,6 +7,8 @@
   var API = window.HUB_API, ENV = window.HUB_ENV || 'LIVE';
   var LIAISON = 'edgewood.hs.volunteers+liaison@gmail.com', TECH = 'edgewood.hs.volunteers+help@gmail.com';
   var root = document.getElementById('hub');
+  // Nov 14: "Refresh now" on remembered screens: forget everything and reload (the address bar already says which screen)
+  if (root) root.addEventListener('click', function (e) { var t = e.target; if (t && t.classList && t.classList.contains('memore')) { e.preventDefault(); try { window.__hubHomeC = {}; } catch (x) {} location.reload(); } });
   var PFX = ENV === 'LIVE' ? '' : 'sbx_';   // live and test sites share this address, so they keep separate saved codes and admin sign-ins
   var KEY = PFX + 'hubCodes', ACTIVE = PFX + 'hubActive';
   var state = { data: null, admin: false, adminData: null, view: 'home', cal: null, page: 'Portal' };
@@ -119,7 +121,7 @@
   }
   function call(action, body) {
     body = body || {}; body.action = action;
-    if (/^admin|^stand(Submit|Save)/.test(action) && !/^admin(HubGames|SuGames|Stands|Search|View|HubRoster|SuRoster|Tools|Health|Google|NoShows|Family|StandForm|CancelOptions|DocFile|DocQueue|LogStands|SheetList|WalkInStands)$/.test(action)) { try { window.__hubHomeC = {}; } catch (e) {} }   // Nov 14: a change makes the admin home reload its lists
+    if (!/^(portal|visit|clientError|directory|dirGoogle|leaveInfo|admin(HubGames|SuGames|Stands|Search|View|HubRoster|SuRoster|Tools|Health|Google|NoShows|Family|StandForm|CancelOptions|DocFile|DocQueue|LogStands|SheetList|WalkInStands))$/.test(action)) { try { window.__hubHomeC = {}; } catch (e) {} }   // Nov 14: any change (anything that isn't a read) clears the remembered screens
     body._c = { page: state.page, ua: navigator.userAgent, tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || ''), scr: screen.width + 'x' + screen.height, lang: navigator.language || '', sid: SID };
     return fetch(API, { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok) throw new Error(j.error || 'Something went wrong.');
@@ -173,7 +175,8 @@
     var ent = activeEntry();
     if (!ent) return signIn();
     spinner('Loading your page…');
-    call('portal', reqOf(ent)).then(function (d) {
+    var rq = reqOf(ent);
+    memoCall('portal', rq, JSON.stringify(rq)).then(function (d) {   // switching between people on this device is instant after the first look
       if (d.pick) return pickPerson(ent.email, d.pick);
       state.data = d; ent.first = d.me.first; ent.personId = d.me.personId; saveEntry(ent);
       renderHome(d, false);
@@ -325,7 +328,7 @@
       list.map(function (p) { return '<button class="btn" data-pid="' + esc(p.personId) + '">' + esc(p.first) + '</button>'; }).join('') + '<p class="err" id="msg"></p></div>' + footer());
     on('[data-pid]', 'click', function () {
       var pid = this.getAttribute('data-pid'); if (this.disabled) return; var undo = busy(this);
-      call('portal', { email: email, personId: pid }).then(function (d) {
+      memoCall('portal', { email: email, personId: pid }, JSON.stringify({ email: email, personId: pid })).then(function (d) {
         saveEntry({ email: email, personId: pid, first: d.me.first, limited: true }); state.data = d; renderHome(d, false);
       }).catch(function (e) { undo(); document.getElementById('msg').textContent = e.message; });
     });
@@ -656,10 +659,13 @@
    *  admin home within that time redraws from memory instead of asking the Hub again. "Refresh" on the home forces a reload. */
   // A function, not a var: the router near the top returns before a var placed here would be set.
   function homeC(clear) { if (clear || !window.__hubHomeC) window.__hubHomeC = {}; return window.__hubHomeC; }
-  function homeCall(action) {
-    var c = homeC()[action];
-    if (c && Date.now() - c.at < 120000) return Promise.resolve(c.r);
-    return call(action, adminReq({})).then(function (r) { homeC()[action] = { r: r, at: Date.now() }; return r; });
+  function homeCall(action) { return memoCall(action, adminReq({}), ''); }
+  /** Nov 14: same 2-minute memory for the volunteer dashboard (switching people), a volunteer's admin page, rosters,
+   *  Whole day and the directory. Copies go in and out so a screen that changes its data can't change the memory. */
+  function memoCall(action, body, key, ttl) {
+    var k = action + '|' + (key || ''), c = homeC()[k];
+    if (c && Date.now() - c.at < (ttl || 120000)) return Promise.resolve(JSON.parse(c.j));
+    return call(action, body).then(function (r) { try { homeC()[k] = { j: JSON.stringify(r), at: Date.now() }; } catch (e) {} return r; });
   }
   /** People search on its own screen (was a card on the admin home). */
   function adminFind(q0) {
@@ -1292,8 +1298,8 @@
   function adminSuRoster(src, date) {
     adminUrl({ su: src, d: date });
     state.page = 'Portal admin SignUp roster'; spinner('Loading roster…');
-    call('adminSuRoster', adminReq({ src: src, date: date })).then(function (r) {
-      var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>' + esc(r.name) + ' · ' + esc(r.day) + '</b><span class="small muted">SignUp.com</span></div>' +
+    memoCall('adminSuRoster', adminReq({ src: src, date: date }), src + '|' + date).then(function (r) {
+      var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>' + esc(r.name) + ' · ' + esc(r.day) + '</b><span class="small muted">SignUp.com</span></div>' + '<p class="small muted" style="margin:6px 0 0">Kept 2 minutes. <a href="#" class="memore">Refresh now</a></p>' +
         '<p class="small muted">Read only. Move or remove people on SignUp.com, or use Game Tasks › Add a worker by hand.</p></div>';
       var rc = reachOf(r);
       o += reachCard(rc, r);
@@ -1322,11 +1328,11 @@
   function adminDay(date) {
     adminUrl({ day: date });
     state.page = 'Portal admin day'; spinner('Loading every game that day…');
-    var su = call('adminSuGames', adminReq({})).then(function (r) { return r.games.filter(function (g) { return g.date === date; }); });
-    var hub = call('adminHubGames', adminReq({})).then(function (r) { return r.games.filter(function (g) { return g.date === date; }); }, function () { return []; });
+    var su = homeCall('adminSuGames').then(function (r) { return r.games.filter(function (g) { return g.date === date; }); });
+    var hub = homeCall('adminHubGames').then(function (r) { return r.games.filter(function (g) { return g.date === date; }); }, function () { return []; });
     Promise.all([su, hub]).then(function (lists) {
-      var jobs = lists[0].map(function (g) { return call('adminSuRoster', adminReq({ src: g.src, date: date })).then(function (r) { r.kind = 'su'; return r; }); })
-        .concat(lists[1].map(function (g) { return call('adminHubRoster', adminReq({ src: g.src, date: date })).then(function (r) { r.kind = 'hub'; return r; }); }));
+      var jobs = lists[0].map(function (g) { return memoCall('adminSuRoster', adminReq({ src: g.src, date: date }), g.src + '|' + date).then(function (r) { r.kind = 'su'; return r; }); })
+        .concat(lists[1].map(function (g) { return memoCall('adminHubRoster', adminReq({ src: g.src, date: date }), g.src + '|' + date).then(function (r) { r.kind = 'hub'; return r; }); }));
       if (!jobs.length) throw new Error('No games found on that day.');
       return Promise.all(jobs);
     }).then(function (rs) {
@@ -1339,7 +1345,7 @@
         });
       });
       var rc = reachOf(all);
-      var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>All games · ' + esc(day) + '</b><span class="small muted">' + rs.length + ' game' + (rs.length === 1 ? '' : 's') + '</span></div>' +
+      var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>All games · ' + esc(day) + '</b><span class="small muted">' + rs.length + ' game' + (rs.length === 1 ? '' : 's') + '</span></div>' + '<p class="small muted" style="margin:6px 0 0">Kept 2 minutes. <a href="#" class="memore">Refresh now</a></p>' +
         '<p class="small muted">' + rs.map(function (r) { return esc(r.name) + (r.kind === 'hub' ? ' (Hub)' : ''); }).join(' · ') + '</p></div>';
       o += reachCard(rc, all, 'these games');
       rs.forEach(function (r, gi) {
@@ -1364,10 +1370,10 @@
   function adminRoster(src, date, flash) {
     adminUrl({ hub: src, d: date });
     state.page = 'Portal admin roster'; spinner('Loading roster…');
-    call('adminHubRoster', adminReq({ src: src, date: date })).then(function (r) {
+    memoCall('adminHubRoster', adminReq({ src: src, date: date }), src + '|' + date).then(function (r) {
       ROSTER = r;
       var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>' + esc(r.name) + ' · ' + esc(r.day) + '</b><span class="small muted">' +
-        ({ open: 'Open', locked: 'Locked', notyet: 'Not open yet' }[r.state] || r.state) + '</span></div>' + (r.lockLabel ? '<p class="small muted">Sign-up closes ' + esc(r.lockLabel) + '</p>' : '') +
+        ({ open: 'Open', locked: 'Locked', notyet: 'Not open yet' }[r.state] || r.state) + '</span></div>' + (r.lockLabel ? '<p class="small muted">Sign-up closes ' + esc(r.lockLabel) + '</p>' : '') + '<p class="small muted" style="margin:6px 0 0">Kept 2 minutes. <a href="#" class="memore">Refresh now</a></p>' +
         (flash ? '<p class="ok" style="color:#1e7e34;font-weight:bold">' + esc(flash) + '</p>' : '') + '<div id="act"></div></div>';
       var rc = reachOf(r);
       o += reachCard(rc, r);
@@ -1574,7 +1580,7 @@
   function dirView() {
     var s = dirSess(); if (!s) return dirStart();
     state.page = 'Directory'; spinner('Loading the directory…');
-    call('directory', { adminSession: s.session }).then(function (r) { state.dir = r; state.dirF = state.dirF || {}; dirRender(); })
+    memoCall('directory', { adminSession: s.session }, '', 30 * 60000).then(function (r) { state.dir = r; state.dirF = state.dirF || {}; dirRender(); })
       .catch(function (e) {
         if (/expired|sign in with google/i.test(e.message)) { try { localStorage.removeItem(DIR); } catch (x) {} if (!adminSess()) return dirStart('Your sign-in expired. Sign in again.'); return adminFail(e); }
         h(dirBar() + '<div class="card"><p class="err">' + esc(e.message) + '</p></div>' + footer()); wireDirBar();
@@ -1665,11 +1671,11 @@
     adminUrl({ p: pid });
     spinner('Loading volunteer…');
     var tools = TOOLS ? Promise.resolve(TOOLS) : call('adminTools', adminReq({})).then(function (r) { TOOLS = r; adminLevelSet(r); return r; }).catch(function () { return null; });
-    Promise.all([call('adminView', adminReq({ personId: pid })), tools]).then(function (x) { var d = x[0]; state.adminData = d; renderHome(d, true); }).catch(adminFail);
+    Promise.all([memoCall('adminView', adminReq({ personId: pid }), pid), tools]).then(function (x) { var d = x[0]; state.adminData = d; renderHome(d, true); }).catch(adminFail);
   }
   function adminCard(d) {
     var a = d.adminView || {};
-    return '<div class="card admincard wide"><div class="big">' + esc(a.name) + '</div>' +
+    return '<div class="card admincard wide"><div class="big">' + esc(a.name) + ' <a href="#" class="memore small" style="font-size:12px;font-weight:400">Refresh</a></div>' +
       '<div class="small">' + esc(a.email) + '</div>' +
       '<div class="small">' + (a.phone ? '<a href="' + telLink(a.phone) + '">' + esc(a.phone) + '</a>' : '<span class="muted">no phone</span>') + (a.parentPhone ? ' · parent ' + esc(a.parentPhone) : '') + '</div>' +
       '<div class="small">Status: <b>' + esc(a.status) + '</b>' + (a.inactiveReason ? ' — ' + esc(a.inactiveReason) : '') + '</div>' +
