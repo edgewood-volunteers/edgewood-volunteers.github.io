@@ -153,6 +153,71 @@
     cal: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B2545" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>'
   };
 
+  // ---------- home-screen card (Nov 14, Nick: "add a button on their dashboard to launch the action for them").
+  // Android (Chrome/Samsung): the button opens the phone's own Install box (beforeinstallprompt; needs /sw.js).
+  // iPhone: Apple lets no page do that, so the button shows the 3 taps over the page. Never shown inside the
+  // home-screen app itself, on computers, in the admin view, or after "Not now" on that phone.
+  // A2HS_LIVE false = sandbox only (live turns on when Nick says).
+  var A2HS_LIVE = false;
+  var A2 = (function () {
+    var ua = navigator.userAgent || '', ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var android = /Android/.test(ua), standalone = false;
+    try { standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; } catch (e) {}
+    var on = (A2HS_LIVE || ENV !== 'LIVE'), o = { ios: ios, android: android, standalone: standalone, on: on, prompt: null, done: false };
+    if (!on) return o;
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); o.prompt = e; });
+    window.addEventListener('appinstalled', function () { o.done = true; try { localStorage.setItem(PFX + 'a2hsDone', '1'); } catch (x) {} var c = document.getElementById('a2hs'); if (c) c.parentNode.removeChild(c); });
+    if (!standalone && (ios || android) && 'serviceWorker' in navigator) { try { navigator.serviceWorker.register('/sw.js'); } catch (e) {} }
+    return o;
+  })();
+  function a2hsShow() {
+    if (!A2.on || A2.standalone || A2.done || !(A2.ios || A2.android)) return false;
+    try { if (localStorage.getItem(PFX + 'a2hsNo') || localStorage.getItem(PFX + 'a2hsDone')) return false; } catch (e) {}
+    return true;
+  }
+  function a2hsCard() {
+    if (!a2hsShow()) return '';
+    return '<div class="card" id="a2hs" style="border:1px solid #fcd34d">' +
+      '<div style="display:flex;gap:12px;align-items:center"><img src="/apple-touch-icon.png" alt="" style="width:44px;height:44px;border-radius:10px;flex:none">' +
+      '<div><b>Put the Hub on your home screen</b><div class="small muted">One tap to this page, like an app. Nothing to download from an app store.</div></div></div>' +
+      '<button class="btn primary" id="a2hsGo" style="width:100%;margin-top:12px">' + (A2.ios ? 'Show me how' : 'Add to home screen') + '</button>' +
+      '<div class="center small" style="margin-top:8px"><a href="#" id="a2hsNo">Not now</a></div></div>';
+  }
+  function a2hsWire() {
+    on('#a2hsNo', 'click', function (e) { e.preventDefault(); try { localStorage.setItem(PFX + 'a2hsNo', '1'); } catch (x) {} var c = document.getElementById('a2hs'); if (c) c.parentNode.removeChild(c); });
+    on('#a2hsGo', 'click', function () {
+      if (A2.prompt && !A2.ios) {
+        var p = A2.prompt; A2.prompt = null;
+        p.prompt();
+        p.userChoice.then(function (r) { if (r && r.outcome === 'accepted') { A2.done = true; try { localStorage.setItem(PFX + 'a2hsDone', '1'); } catch (x) {} var c = document.getElementById('a2hs'); if (c) c.parentNode.removeChild(c); } }, function () {});
+        return;
+      }
+      a2hsHowTo();
+    });
+  }
+  function a2hsHowTo() {
+    var dots = function (v) { return '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">' + (v ? '<circle cx="12" cy="5" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="19" r="2.2"/>' : '<circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/>') + '</svg>'; };
+    var share = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0B2545" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v9h12v-9"/></svg>';
+    var ic = function (x) { return '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:#EEF2F7;border:1px solid #d6dde6;fill:#0B2545;vertical-align:middle;margin:0 2px">' + x + '</span>'; };
+    var li = function (n, t) { return '<div style="display:flex;gap:10px;align-items:flex-start;margin:12px 0"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:#0B2545;color:#F5B700;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px">' + n + '</span><div style="line-height:1.5">' + t + '</div></div>'; };
+    var body = A2.ios ?
+      li(1, 'Tap ' + ic(dots(false)) + ' next to the address bar, then <b>Share</b> ' + ic(share) + '.<br><span style="color:#64748B;font-size:13px">Older iPhone: tap Share ' + ic(share) + ' on the bottom bar.</span>') +
+      li(2, 'Scroll down and tap <b>Add to Home Screen</b>.') +
+      li(3, 'Leave <b>Open as Web App</b> on and tap <b>Add</b>.') +
+      '<div style="background:#FEF3C7;border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.45;color:#78350F"><b>Then sign in once</b> inside the new icon. It keeps its own sign-in, separate from Safari. Use your code, or <b>Email me my code</b>.</div>' :
+      li(1, 'Tap ' + ic(dots(true)) + ' at the top right of Chrome.<br><span style="color:#64748B;font-size:13px">Samsung Internet: tap ☰ at the bottom, then <b>Add page to</b>.</span>') +
+      li(2, 'Tap <b>Add to Home screen</b> (or <b>Install app</b>).') +
+      li(3, 'Tap <b>Install</b>, or <b>Add</b>.');
+    var ov = document.createElement('div'); ov.id = 'a2hsOv';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(11,37,69,.55);display:flex;align-items:flex-end;justify-content:center;font-family:Inter,system-ui,sans-serif';
+    ov.innerHTML = '<div role="dialog" aria-label="Add to home screen" style="background:#fff;color:#0F172A;width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -4px 20px rgba(0,0,0,.2)">' +
+      '<div style="font:700 20px \'Space Grotesk\',Inter,sans-serif;color:#0B2545">Add the Hub to your home screen</div>' + body +
+      '<button id="a2hsOk" style="width:100%;min-height:46px;margin-top:14px;border:0;border-radius:12px;background:#0B2545;color:#fff;font:600 15px Inter,sans-serif">Got it</button>' +
+      '<div style="text-align:center;margin-top:10px;font-size:14px"><a href="/help/home-screen/" target="_blank" rel="noopener" style="color:#0B2545">See the full guide</a></div></div>';
+    ov.addEventListener('click', function (e) { if (e.target === ov || e.target.id === 'a2hsOk') ov.parentNode.removeChild(ov); });
+    document.body.appendChild(ov);
+  }
+
   // ---------- helpers
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
@@ -613,6 +678,7 @@
       (pH ? ' <span class="muted">(' + pl(pq.length) + ')</span>' : '') + '</span></div>';
     out += '</div>';
 
+    if (!asAdmin) out += a2hsCard();
     // Quick links
     out += '<div class="card links">' +
       '<button class="li" id="hist"><span class="l">' + ICON.clock + 'Hours history</span>' + ICON.chev + '</button>' +
@@ -627,6 +693,7 @@
     on('#cal', 'click', function () { calendar(d, asAdmin); });
     on('#hist', 'click', function () { history_(d, asAdmin); });
     on('#manage', 'click', function (e) { e.preventDefault(); manageDevice(d); });
+    if (!asAdmin) a2hsWire();
     on('#usecode', 'click', function () { signIn(); });
   }
 
