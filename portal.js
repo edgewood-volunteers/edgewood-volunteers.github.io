@@ -126,14 +126,15 @@
   var BUSY_RE = /too many|simultaneous|rate limit|try again later|timed out|timeout|\block\b|service unavailable|internal error|server error|temporarily/i;
   function call(action, body) {
     body = body || {}; body.action = action;
-    var read = READ_RE.test(action);
+    var read = READ_RE.test(action), quiet = !!body._bg; delete body._bg;   // _bg: a background load (no busy note)
     if (!read) { try { window.__hubHomeC = {}; } catch (e) {} }   // Nov 14: any change (anything that isn't a read) clears the remembered screens
     body._c = { page: state.page, ua: navigator.userAgent, tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || ''), scr: screen.width + 'x' + screen.height, lang: navigator.language || '', sid: SID };
     var payload = JSON.stringify(body);
     function once(n) {
       var again = function (why) {
+        if (quiet) throw new Error('busy');   // a background load just gives up: no point adding to a busy Hub
         if (n >= 4) throw new Error(why === 'busy' ? 'The Hub is very busy right now. Wait a minute and try again.' : why);
-        if (!shown) { shown = true; busyNote(1); }
+        if (!shown && !quiet) { shown = true; busyNote(1); }
         return new Promise(function (ok) { setTimeout(ok, 2000 * (n + 1)); }).then(function () { return once(n + 1); });
       };
       return fetch(API, { method: 'POST', body: payload }).then(function (r) {
@@ -216,10 +217,11 @@
     if (!ent) return signIn();
     spinner('Loading your page…');
     var rq = reqOf(ent);
-    memoCall('portal', rq, JSON.stringify(rq)).then(function (d) {   // switching between people on this device is instant after the first look
+    memoCall('portal', rq, JSON.stringify(rq), dashTtl()).then(function (d) {   // switching between people on this device is instant after the first look
       if (d.pick) return pickPerson(ent.email, d.pick);
       state.data = d; ent.first = d.me.first; ent.personId = d.me.personId; saveEntry(ent);
       renderHome(d, false);
+      prefetchOthers(ent.id);
     }).catch(function (e) {
       if (/couldn't find that/i.test(e.message)) { dropEntry(ent.id); return signIn('That saved sign-in no longer works. Enter your current code or email.'); }
       if (/signs in with Google/i.test(e.message) && ent.limited) { dropEntry(ent.id); return signIn(e.message); }   // email sign-in no longer allowed for this email
@@ -368,7 +370,7 @@
       list.map(function (p) { return '<button class="btn" data-pid="' + esc(p.personId) + '">' + esc(p.first) + '</button>'; }).join('') + '<p class="err" id="msg"></p></div>' + footer());
     on('[data-pid]', 'click', function () {
       var pid = this.getAttribute('data-pid'); if (this.disabled) return; var undo = busy(this);
-      memoCall('portal', { email: email, personId: pid }, JSON.stringify({ email: email, personId: pid })).then(function (d) {
+      memoCall('portal', { email: email, personId: pid }, JSON.stringify({ email: email, personId: pid }), dashTtl()).then(function (d) {
         saveEntry({ email: email, personId: pid, first: d.me.first, limited: true }); state.data = d; renderHome(d, false);
       }).catch(function (e) { undo(); document.getElementById('msg').textContent = e.message; });
     });
@@ -703,10 +705,31 @@
   /** Nov 14: same 2-minute memory for the volunteer dashboard (switching people), a volunteer's admin page, rosters,
    *  Whole day and the directory. Copies go in and out so a screen that changes its data can't change the memory. */
   function memoCall(action, body, key, ttl) {
-    var k = action + '|' + (key || ''), c = homeC()[k];
+    var k = action + '|' + (key || ''), c = homeC()[k], pend = window.__hubPend || (window.__hubPend = {});
     if (c && Date.now() - c.at < (ttl || 120000)) return Promise.resolve(JSON.parse(c.j));
-    return call(action, body).then(function (r) { try { homeC()[k] = { j: JSON.stringify(r), at: Date.now() }; } catch (e) {} return r; });
+    var C = homeC(), bg = !!(body && body._bg);
+    if (pend[k]) return bg ? pend[k] : pend[k].catch(function () { return memoCall(action, body, key, ttl); });   // already on its way (a background load): wait for it; if it gave up, load it normally
+    pend[k] = call(action, body).then(function (r) { delete pend[k]; try { if (C === homeC()) C[k] = { j: JSON.stringify(r), at: Date.now() }; } catch (e) {} return r; },
+      function (e) { delete pend[k]; throw e; });   // C === homeC(): a change made meanwhile cleared the memory, so don't keep this answer
+    return pend[k];
   }
+  /** Nov 14: after the dashboard shows, quietly load the other people saved on this phone, one at a time,
+   *  so tapping their name is instant. bg:1 tells the Hub not to count it as a dashboard visit. Kept 10 minutes. */
+  function dashTtl() { return 600000; }   // a function, not a var: the router runs home() before a var down here is set
+  function prefetchOthers(curId) {
+    if (window.__hubPre) return;
+    var list = codes().filter(function (x) { return x.id !== curId; });
+    if (!list.length) return;
+    window.__hubPre = 1;
+    list.reduce(function (p, x) {
+      return p.then(function () {
+        if (state.admin) return;
+        var rq = reqOf(x), b = { bg: 1, _bg: 1 }; Object.keys(rq).forEach(function (q) { b[q] = rq[q]; });
+        return memoCall('portal', b, JSON.stringify(rq), dashTtl()).catch(function () {});
+      });
+    }, Promise.resolve()).then(function () { window.__hubPre = 0; });
+  }
+
   /** People search on its own screen (was a card on the admin home). */
   function adminFind(q0) {
     adminUrl({ find: '1' }); state.page = 'Portal admin find';

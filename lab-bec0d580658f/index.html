@@ -100,7 +100,7 @@
   if (!q || q === '?' || v0 === 'home' || v0 === 'leave' || v0 === 'admin' || v0 === 'directory') {   // the portal and the leave page are built here, not by the Hub
     var hub = document.getElementById('hub'); hub.className = 'wrap portal'; hub.innerHTML = '';
     if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') { hub.style.paddingTop = '22px'; var bar = document.createElement('div'); bar.className = 'env'; bar.textContent = window.HUB_ENV + ' – test copy, not live data'; document.body.appendChild(bar); }
-    var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=42'; document.body.appendChild(sc);
+    var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=43'; document.body.appendChild(sc);
     return;
   }
   if (v0 === 'levy') {   // sign the Levy packet online: built here (pdf-lib stamps Levy's PDF in the browser)
