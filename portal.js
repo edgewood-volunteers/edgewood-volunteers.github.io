@@ -85,6 +85,60 @@
     ].join('\n');
     var s = document.createElement('style'); s.id = 'hubv2css'; s.textContent = css; document.head.appendChild(s);
   })();
+  // ---------- dark mode (Nov 14, Nick; sandbox only for now). html.dark when the setting says Dark, or Match my phone and the phone is dark.
+  // Overrides only: the light styles above stay the source. Inline colors are caught with [style*=...] selectors.
+  (function () {
+    if (!(ENV !== 'LIVE' || window.HUB_DARK)) return;
+    var D = 'html.dark ', H = D + '#hub.portal ', c = [
+      D + 'body{background:#0A0F1A;color:#E2E8F0}',
+      D + '.wrap h1{color:#E2E8F0}' + D + '.wrap p{color:#A3B1C6}' + D + '.spin{border-color:#334155;border-top-color:#F5B700}',
+      H + '{color:#E2E8F0}',
+      H + 'header{background:#0F1E38}' + H + 'header.adminhdr{background:#4A1E0C}',
+      H + '.card{background:#131C2E;border-color:#22304A;box-shadow:none}',
+      H + '.card.inner{background:#0F1726}' + H + '.card.warn{background:#2A1416;border-color:#7F1D1D}' + H + '.card.gameday{background:#2A220C;border-color:#7A5B0F}' + H + '.card.admincard{background:#2A1A0E;border-color:#7C3A12}',
+      H + '.card h2,' + H + '.big,' + H + '.num,' + H + '.hrs .n,' + H + '.famtop .n2,' + H + '.ev,' + H + '.st-title{color:#E2E8F0}',
+      H + '.kicker,' + H + '.st-sub,' + H + '.ev-sub,' + H + '.note,' + H + '.legend,' + H + '.muted,' + H + '.wd,' + H + '.dn,' + H + 'footer{color:#94A3B8}',
+      H + '.tag{color:#FCD34D}' + H + '.err{color:#F87171}' + H + '.ok{color:#4ADE80}',
+      H + 'footer a,' + H + '.center a,' + H + 'a:not(.btn):not(.go):not(.pill):not(.li):not(.eyebrow){color:#93C5FD}',
+      H + '.btn,' + H + 'a.btn{background:#182338;color:#E2E8F0;border-color:#2B3A55}',
+      H + '.btn.primary,' + H + 'a.btn.primary{background:#F5B700;border-color:#F5B700;color:#0B2545}',
+      H + '.btn.danger{background:#B91C1C;border-color:#B91C1C;color:#fff}',
+      D + '#hub.portal input,' + D + '#hub.portal select,' + D + '#hub.portal textarea{background:#0F1726;color:#E2E8F0;border-color:#2B3A55;color-scheme:dark}',
+      H + '.lead{background:#0F1726}' + H + '.lead .acts a{background:#F5B700;color:#0B2545}' + H + '.lead .acts a.light{background:#1E2B45;color:#C7D2FE}',
+      H + '.dtile{background:#0B2545;border:1px solid #2B3A55}',
+      H + '.ico.good{background:#14361F}' + H + '.ico.bad{background:#3A2E0A}' + H + '.ico.wait{background:#1E2B45}' + H + '.tagp{background:#1E2B45;color:#C7D2FE}',
+      H + '.docs,' + H + '.links .li,' + H + '.hrow,' + H + '.famrows,' + H + '.frow{border-color:#22304A}',
+      H + '.links .li{color:#E2E8F0}' + H + '.bar{background:#22304A}' + H + '.famtop .you{border-color:#2B3A55}',
+      H + '.cta{background:#0F1E38;border:1px solid #2B3A55}',
+      H + '.pend{background:#3A2E0A;color:#FCD98A}' + H + '.pend .muted{color:#E9C46A}' + H + '.pend .dot{background:#F5B700}',
+      H + '.stat{background:#0F1726}' + H + '.hit{background:#0F1726;border-color:#2B3A55;color:#E2E8F0}',
+      H + '.cell{border-color:#22304A}' + H + '.cell.today{border-color:#F5B700}' + H + '.chip{background:#1E3A8A;color:#DBEAFE}' + H + '.chip.past{background:#1F2937;color:#9CA3AF}',
+      D + '.msst{background:#0F1726;border-color:#2B3A55}' + D + '.mspos{border-color:#22304A}' + D + '.ms2 label,' + D + '.mslab{color:#94A3B8}' + D + '.msfoot{background:#131C2E;border-color:#22304A}',
+      // icons drawn in navy
+      D + '#hub svg[stroke="#0B2545"]{stroke:#C9D6EE}' + D + '#hub svg[stroke="#1E3A8A"]{stroke:#93C5FD}',
+      // inline colors
+      H + '[style*="background:#0B2545"],' + H + '[style*="background:#0b2545"]{background:#9DB8E8 !important}',
+      H + '[style*="color:#0b2545"],' + H + '[style*="color:#0B2545"]{color:#E2E8F0 !important}',
+      H + '[style*="background:#fff;"],' + H + '[style*="background:#fff\\""],' + H + '[style*="background:#eef3fb"],' + H + '[style*="background:#eef2ff"],' + H + '[style*="background:#f8fafc"]{background:#0F1726 !important}',
+      H + '[style*="background:#fff6f3"]{background:#2A1416 !important;border-color:#7F1D1D !important}',
+      H + '[style*="background:#FEF3C7"],' + H + '[style*="background:#fef3c7"]{background:#3A2E0A !important;color:#FCD98A !important}',
+      H + '[style*="#e5e7eb"],' + H + '[style*="#e2e8f0"],' + H + '[style*="#e6ebf1"],' + H + '[style*="#eef2f6"],' + H + '[style*="#d6dde6"],' + H + '[style*="#c7d2fe"],' + H + '[style*="#e0b4a8"]{border-color:#2B3A55 !important}',
+      H + '[style*="color:#b45309"],' + H + '[style*="color:#B45309"]{color:#FBBF24 !important}' + H + '[style*="color:#15803d"],' + H + '[style*="color:#1e7e34"]{color:#4ADE80 !important}',
+      H + '[style*="color:#b91c1c"]{color:#F87171 !important;border-color:#F87171 !important}'
+    ].join('\n');
+    var st = document.createElement('style'); st.id = 'hubdarkcss'; st.textContent = c; document.head.appendChild(st);
+    var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    window.__hubTheme = function (set) {
+      if (set) { try { localStorage.setItem('hubTheme', set); } catch (e) {} }
+      var t = 'auto'; try { t = localStorage.getItem('hubTheme') || 'auto'; } catch (e) {}
+      var on = t === 'dark' || (t === 'auto' && mq && mq.matches);
+      document.documentElement.classList.toggle('dark', on);
+      var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = on ? '#0A0F1A' : '#0b2545';
+      return t;
+    };
+    window.__hubTheme();
+    if (mq && mq.addEventListener) mq.addEventListener('change', function () { window.__hubTheme(); });
+  })();
   var ICON = {
     ok: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     bad: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v8M12 18.5v.01"/></svg>',
@@ -591,6 +645,9 @@
         'Signing in with Google again brings back everyone on that Google account. On a shared device, also sign out of Google in this browser.' +
         '<br><a class="btn sm" href="https://accounts.google.com/Logout" target="_blank" rel="noopener" style="margin-top:8px;display:inline-block;width:auto">Sign out of Google</a>' +
         '<br><span class="muted">This signs this browser out of every Google account (Gmail too).</span></p>' + '</div>' +
+      (window.__hubTheme ? '<div class="card"><h3>Appearance</h3><p class="muted small" style="margin:0 0 8px">Light or dark, on this device only.</p>' +
+        '<div style="display:flex;gap:6px">' + [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']].map(function (o) {
+          return '<button class="btn sm thm" data-t="' + o[0] + '" style="flex:1">' + o[1] + '</button>'; }).join('') + '</div></div>' : '') +
       '<div class="card"><h3>Leave the volunteer list</h3>' +
       '<p class="muted small">Stops Hub emails about shifts and paperwork. You pick who leaves on the next screen.</p>' +
       '<button class="btn" id="lv">Leave the volunteer list…</button></div>' + footer());
@@ -600,6 +657,8 @@
       var c = document.getElementById(id + 'c'); c.hidden = false; c.scrollIntoView({ block: 'nearest' });
     };
     on('#mback', 'click', function () { renderHome(d, false); });
+    var thmMark = function () { var t = window.__hubTheme(); Array.prototype.forEach.call(root.querySelectorAll('.thm'), function (x) { x.classList.toggle('primary', x.getAttribute('data-t') === t); }); };
+    if (window.__hubTheme) { thmMark(); on('.thm', 'click', function () { window.__hubTheme(this.getAttribute('data-t')); thmMark(); }); }
     on('[data-no]', 'click', function () { document.getElementById(this.getAttribute('data-no') + 'c').hidden = true; });
     list.forEach(function (x, i) {
       on('#f' + i, 'click', function () { show('f' + i); });
