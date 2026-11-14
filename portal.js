@@ -1282,10 +1282,6 @@
       });
       h(o + footer()); wireAdminBar();
       on('#rback', 'click', adminSearch);
-      if (state.canManage) {
-        document.getElementById('act').insertAdjacentHTML('beforebegin', '<button class="btn sm" id="redit" style="margin-bottom:6px">Edit stands and times</button>');
-        on('#redit', 'click', function () { adminManage(src.replace(/^hub:\s*/i, ''), date); });
-      }
       on('.suview', 'click', function () { adminView(this.getAttribute('data-id')); });
       wireReach(rc, r);
     }).catch(adminFail);
@@ -1366,6 +1362,10 @@
       });
       h(o + footer()); wireAdminBar();
       on('#rback', 'click', adminSearch);
+      if (state.canManage) {
+        document.getElementById('act').insertAdjacentHTML('beforebegin', '<button class="btn sm" id="redit" style="margin-bottom:6px">Edit stands and times</button>');
+        on('#redit', 'click', function () { adminManage(src.replace(/^hub:\s*/i, ''), date); });
+      }
       wireReach(rc, r);
       on('.rop', 'click', function () { adminAct(this.getAttribute('data-op'), this.getAttribute('data-key'), this.getAttribute('data-name'), this.getAttribute('data-task')); });
     }).catch(adminFail);
