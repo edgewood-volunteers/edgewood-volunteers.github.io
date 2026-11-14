@@ -537,22 +537,26 @@
   function manageDevice(d) {
     state.page = 'Dashboard (manage device)';
     var en = activeEntry() || {}, list = codes(), nm = esc(en.first || 'this person');
+    var nameOf = function (x) { return esc(x.first || (x.code ? fmtCode(x.code) : x.email)); };
     var ask = function (id, q, yes) {
       return '<div class="confirm" id="' + id + 'c" hidden style="margin-top:10px;padding:10px 12px;border:1px solid #e0b4a8;border-radius:10px;background:#fff6f3"><p style="margin-top:0"><b>' + q + '</b></p>' +
         '<button class="btn danger" id="' + id + 'y">' + yes + '</button> <button class="btn" data-no="' + id + '">Cancel</button></div>';
     };
+    var rows = list.map(function (x, i) {
+      var n = nameOf(x);
+      return '<div class="fgrow" style="padding:10px 0;border-top:' + (i ? '1px solid #e6ebf1' : '0') + '">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><b style="font-size:17px">' + n + '</b>' +
+        '<button class="btn sm" id="f' + i + '" style="width:auto;margin:0">Forget ' + n + '</button></div>' +
+        ask('f' + i, 'Forget ' + n + ' on this device?', 'Yes, forget ' + n) + '</div>';
+    }).join('');
     h(header(en.first, false) +
       '<div class="card"><button class="btn sm" id="mback">← Back to my dashboard</button>' +
       '<h2 style="margin-top:12px">Sign-ins &amp; my data</h2>' +
-      '<p class="muted">Saved on this device: <b>' + list.map(function (x) { return esc(x.first || (x.code ? fmtCode(x.code) : x.email)); }).join(', ') + '</b>.</p></div>' +
-      '<div class="card"><h3>Forget ' + nm + ' on this device</h3>' +
-      '<p class="muted small">Removes ' + nm + ' from this phone or computer only. Nothing changes in the Hub. To get back in, use the code from your Hub email or your email address.</p>' +
-      '<button class="btn" id="f1">Forget ' + nm + '</button>' +
-      ask('f1', 'Forget ' + nm + ' on this device?', 'Yes, forget ' + nm) + '</div>' +
-      (list.length > 1 ? '<div class="card"><h3>Forget everyone on this device</h3>' +
-        '<p class="muted small">Removes all ' + list.length + ' people saved here. Use this on a shared or borrowed device.</p>' +
-        '<button class="btn" id="fa">Forget everyone</button>' +
-        ask('fa', 'Forget all ' + list.length + ' people on this device?', 'Yes, forget everyone') + '</div>' : '') +
+      '<p class="muted small">Forgetting someone removes them from this phone or computer only. Nothing changes in the Hub. To get back in, use the code from your Hub email or your email address.</p></div>' +
+      '<div class="card"><h3>Saved on this device</h3>' + rows +
+      (list.length > 1 ? '<div style="padding-top:12px;border-top:1px solid #e6ebf1"><button class="btn" id="fa">Forget everyone (' + list.length + ')</button>' +
+        '<p class="muted small" style="margin:6px 0 0">Use this on a shared or borrowed device.</p>' +
+        ask('fa', 'Forget all ' + list.length + ' people on this device?', 'Yes, forget everyone') + '</div>' : '') + '</div>' +
       '<div class="card"><h3>Leave the volunteer list</h3>' +
       '<p class="muted small">Stops Hub emails about shifts and paperwork. You pick who leaves on the next screen.</p>' +
       '<button class="btn" id="lv">Leave the volunteer list…</button></div>' + footer());
@@ -563,9 +567,16 @@
     };
     on('#mback', 'click', function () { renderHome(d, false); });
     on('[data-no]', 'click', function () { document.getElementById(this.getAttribute('data-no') + 'c').hidden = true; });
-    on('#f1', 'click', function () { show('f1'); });
+    list.forEach(function (x, i) {
+      on('#f' + i, 'click', function () { show('f' + i); });
+      on('#f' + i + 'y', 'click', function () {
+        homeC(true); dropEntry(x.id);
+        if (!codes().length) return home();          // nobody left: sign-in screen
+        if (x.id === en.id) return home();           // forgot the person on screen: open the next one
+        manageDevice(d);                             // forgot someone else: stay here
+      });
+    });
     on('#fa', 'click', function () { show('fa'); });
-    on('#f1y', 'click', function () { homeC(true); dropEntry(en.id); home(); });
     on('#fay', 'click', function () { homeC(true); try { localStorage.removeItem(KEY); localStorage.removeItem(ACTIVE); } catch (x) {} home(); });
     on('#lv', 'click', function () { leaveFlow(en.code ? { code: en.code } : { email: en.email }, function () { manageDevice(d); }); });
   }
