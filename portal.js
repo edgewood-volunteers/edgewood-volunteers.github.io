@@ -689,7 +689,7 @@
   function toolErr(el, e) { if (/expired|sign in with google/i.test(e.message)) return adminFail(e); if (el) { el.textContent = e.message; el.className = 'err'; } }
   function toolHead(title, sub) {
     return adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="tback">← Back</button><b>' + esc(title) + '</b><span></span></div>' +
-      (sub ? '<p class="small muted">' + sub + '</p>' : '') + '<p id="tmsg" class="ok" style="font-weight:700"></p></div>';
+      (sub ? '<p class="small muted">' + sub + '</p>' : '') + '<p id="tmsg" class="ok" style="font-weight:700;white-space:pre-line"></p></div>';
   }
   function toolWire() { wireAdminBar(); on('#tback', 'click', adminSearch); }
   function toolMsg(t, c) { var m = document.getElementById('tmsg'); if (!m) return; m.textContent = t || ''; m.className = c || 'ok'; m.style.fontWeight = '700'; }
@@ -893,7 +893,7 @@
             (x.worked === 'Worked' ? esc(x.tin) + '–' + esc(x.tout) + ' · ' + x.hours + ' h' : '<span class="err">' + esc(x.worked || 'No-show') + '</span>') + '</label>' +
             '<div class="small muted" style="margin-left:24px">For ' + esc(x.student || x.credit || '(no student)') + (x.program ? ' · ' + esc(x.program) : '') + '</div>' +
             (x.two ? '<div class="small err" style="margin-left:24px">Names more than one student (' + esc(x.credit) + '). Fix "Credit to" on the Stand Log tab first.</div>' : '') +
-            (x.flags ? '<div class="small" style="margin-left:24px;color:#b45309">Flags: ' + esc(x.flags) + (x.early ? ' · early start ' + esc(x.early) : '') + '</div>' +
+            (x.flags && !x.two ? '<div class="small" style="margin-left:24px;color:#b45309">Flags: ' + esc(x.flags) + (x.early ? ' · early start ' + esc(x.early) : '') + '</div>' +
               '<input class="lr" data-id="' + esc(x.id) + '" placeholder="Why is this OK? (saved as the approval reason)" value="' + esc(x.reason) + '" style="margin-left:24px;width:calc(100% - 24px)">' : '') + '</div>';
         });
         o += '<button class="btn primary lgo" data-g="' + gi + '">Approve the checked lines</button><p class="small lmsg" data-g="' + gi + '"></p></div>';
