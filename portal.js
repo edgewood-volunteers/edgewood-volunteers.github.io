@@ -555,14 +555,14 @@
       '<h2 style="margin-top:12px">Sign-ins &amp; my data</h2>' +
       '<p class="muted small">Forgetting someone removes them from this phone or computer only. Nothing changes in the Hub. To get back in, use the code from your Hub email or your email address.</p></div>' +
       '<div class="card"><h3>Saved on this device</h3>' + rows +
+      (list.length > 1 ? '<div style="padding-top:12px;border-top:1px solid #e6ebf1"><button class="btn" id="fa">Forget everyone (' + list.length + ')</button>' +
+        '<p class="muted small" style="margin:6px 0 0">Use this on a shared or borrowed device.</p>' +
+        ask('fa', 'Forget all ' + list.length + ' people on this device?', 'Yes, forget everyone') + '</div>' : '') +
       '<p class="small" style="margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#eef3fb">' +
         (gl.length ? '<b>Signed in with Google:</b> ' + gl.map(nameOf).join(', ') + '. ' : '<b>Signed in with Google?</b> ') +
         'Signing in with Google again brings back everyone on that Google account. On a shared device, also sign out of Google in this browser.' +
         '<br><a class="btn sm" href="https://accounts.google.com/Logout" target="_blank" rel="noopener" style="margin-top:8px;display:inline-block;width:auto">Sign out of Google</a>' +
-        '<br><span class="muted">This signs this browser out of every Google account (Gmail too).</span></p>' +
-      (list.length > 1 ? '<div style="padding-top:12px;border-top:1px solid #e6ebf1"><button class="btn" id="fa">Forget everyone (' + list.length + ')</button>' +
-        '<p class="muted small" style="margin:6px 0 0">Use this on a shared or borrowed device.</p>' +
-        ask('fa', 'Forget all ' + list.length + ' people on this device?', 'Yes, forget everyone') + '</div>' : '') + '</div>' +
+        '<br><span class="muted">This signs this browser out of every Google account (Gmail too).</span></p>' + '</div>' +
       '<div class="card"><h3>Leave the volunteer list</h3>' +
       '<p class="muted small">Stops Hub emails about shifts and paperwork. You pick who leaves on the next screen.</p>' +
       '<button class="btn" id="lv">Leave the volunteer list…</button></div>' + footer());
