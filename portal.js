@@ -119,14 +119,54 @@
     if (API && u.indexOf(API) === 0) return base + u.slice(API.length).replace(/^\/?/, '');
     return u;
   }
+  var READ_RE = /^(portal|visit|clientError|directory|dirGoogle|leaveInfo|admin(HubGames|SuGames|Stands|Search|View|HubRoster|SuRoster|Tools|Health|Google|NoShows|Family|StandForm|CancelOptions|DocFile|DocQueue|LogStands|SheetList|WalkInStands))$/;
+  /** Nov 14: when the Hub is busy (too many people at once, a timeout, a dropped connection) wait and try again quietly
+   *  instead of showing an error. Reads retry on any of those. Changes retry only when Google turned the request away
+   *  before the Hub ran it (too many at once), so nothing is ever saved twice. Up to 5 tries: waits 2, 4, 6, 8 seconds (about 20 s), with a note on screen while it waits. */
+  var BUSY_RE = /too many|simultaneous|rate limit|try again later|timed out|timeout|\block\b|service unavailable|internal error|server error|temporarily/i;
   function call(action, body) {
     body = body || {}; body.action = action;
-    if (!/^(portal|visit|clientError|directory|dirGoogle|leaveInfo|admin(HubGames|SuGames|Stands|Search|View|HubRoster|SuRoster|Tools|Health|Google|NoShows|Family|StandForm|CancelOptions|DocFile|DocQueue|LogStands|SheetList|WalkInStands))$/.test(action)) { try { window.__hubHomeC = {}; } catch (e) {} }   // Nov 14: any change (anything that isn't a read) clears the remembered screens
+    var read = READ_RE.test(action);
+    if (!read) { try { window.__hubHomeC = {}; } catch (e) {} }   // Nov 14: any change (anything that isn't a read) clears the remembered screens
     body._c = { page: state.page, ua: navigator.userAgent, tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || ''), scr: screen.width + 'x' + screen.height, lang: navigator.language || '', sid: SID };
-    return fetch(API, { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (j) {
-      if (!j.ok) throw new Error(j.error || 'Something went wrong.');
-      return j.result;
-    });
+    var payload = JSON.stringify(body);
+    function once(n) {
+      var again = function (why) {
+        if (n >= 4) throw new Error(why === 'busy' ? 'The Hub is very busy right now. Wait a minute and try again.' : why);
+        if (!shown) { shown = true; busyNote(1); }
+        return new Promise(function (ok) { setTimeout(ok, 2000 * (n + 1)); }).then(function () { return once(n + 1); });
+      };
+      return fetch(API, { method: 'POST', body: payload }).then(function (r) {
+        return r.text().then(function (t) {
+          var j; try { j = JSON.parse(t); } catch (e) { j = null; }
+          if (!j) {   // Google's own error page, not the Hub's answer
+            if (read || r.status === 429 || /too many|simultaneous/i.test(t)) return again('busy');
+            throw new Error('Something went wrong. Check the page before trying again, so nothing is saved twice.');
+          }
+          if (!j.ok) {
+            if (read && BUSY_RE.test(j.error || '')) return again('busy');
+            throw new Error(j.error || 'Something went wrong.');
+          }
+          return j.result;
+        });
+      }, function () {   // no connection, or it dropped
+        if (read) return again('busy');
+        throw new Error('The connection dropped. Check the page before trying again, so nothing is saved twice.');
+      });
+    }
+    var shown = false, done = function () { if (shown) { shown = false; busyNote(-1); } };
+    return once(0).then(function (v) { done(); return v; }, function (e) { done(); throw e; });
+  }
+  /** Nov 14: a friendly note at the bottom of the screen while a request is being retried (it stays put while the page underneath changes). */
+  function busyNote(d) {
+    var w = window; w.__hubBusyN = Math.max(0, (w.__hubBusyN || 0) + d);
+    var el = document.getElementById('hubbusy');
+    if (w.__hubBusyN && !el) {
+      el = document.createElement('div'); el.id = 'hubbusy'; el.setAttribute('role', 'status');
+      el.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;max-width:92vw;background:#4a2c17;color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.25);font-size:15px;line-height:1.35;text-align:center';
+      el.innerHTML = '<b>This is taking a bit longer.</b><br>Lots of people are using the Hub right now. Hang tight, we\'re still working on it…';
+      document.body.appendChild(el);
+    } else if (!w.__hubBusyN && el) el.parentNode.removeChild(el);
   }
   function h(html) { root.innerHTML = html; window.scrollTo(0, 0); if (typeof wireFooter === 'function') wireFooter(); }
   /** Button shows a small spinner and a working label while a request runs; returns a function that puts it back. */
