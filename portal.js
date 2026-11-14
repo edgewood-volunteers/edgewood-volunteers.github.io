@@ -76,6 +76,9 @@
       P + 'footer{color:#64748B}',
       P + 'footer a,' + P + '.center a{color:#1E3A8A}',
       P + '.stat{background:#fff;border-radius:18px}',
+      P + '.famtop{display:flex;align-items:flex-end;gap:18px;margin:6px 0 2px}' + P + '.famtop .you{border-left:1px solid #e5e7eb;padding-left:18px}' + P + '.famtop .n2{font-family:"Space Grotesk",Inter,sans-serif;font-size:30px;font-weight:700;line-height:1.05;color:#0B2545}',
+      P + '.bar.fam{margin-top:14px}' + P + '.famrows{margin-top:10px;border-top:1px solid #eef2f6}' + P + '.frow{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px solid #eef2f6}',
+      P + '.frow .fn{font-weight:600;font-size:15px;display:flex;align-items:center}' + P + '.frow .fn i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:8px}' + P + '.frow .fs{margin-left:17px}' + P + '.frow .ft{font-weight:700;font-size:17px}',
       P + '.pend{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#FEF3C7;color:#78350F;font-size:13.5px}',
       P + '.pend .dot{flex:none;width:8px;height:8px;border-radius:50%;background:#D97706}',
       P + '.pend .muted{color:#92400E}'
@@ -498,22 +501,46 @@
     (sh.rows || []).forEach(function (x) { var k = x.student || ''; if (!k) return; if (!(k in byStud)) { byStud[k] = 0; order.push(k); } byStud[k] += Number(x.hours) || 0; });
     var tot = order.reduce(function (a, k) { return a + byStud[k]; }, 0), COL = ['#0B2545', '#F5B700', '#3B82F6', '#14B8A6', '#94A3B8'];
     var studs = (sh.students || []).map(function (s) { return esc(s.name); }).join(', ');
-    out += '<div class="card"><div class="row" style="margin:0"><span class="kicker">Hours this season</span><span class="small muted">' + esc(sh.shifts || 0) + ' game' + (Number(sh.shifts) === 1 ? '' : 's') + '</span></div>' +
-      '<div class="hrs"><span class="n">' + esc(sh.hours || 0) + '</span><span class="small muted" style="font-weight:600">hours</span></div>';
-    if (tot > 0) {
-      out += '<div class="bar">' + order.map(function (k, i) { return '<div style="width:' + (100 * byStud[k] / tot).toFixed(1) + '%;background:' + COL[i % COL.length] + '"></div>'; }).join('') + '</div>' +
-        '<div class="legend">' + order.map(function (k, i) { return '<span><i style="background:' + COL[i % COL.length] + '"></i>' + esc(k) + ' <b>' + esc(Math.round(byStud[k] * 100) / 100) + '</b></span>'; }).join('') + '</div>';
-    } else out += '<div class="small muted" style="margin-top:8px">Credited to: ' + (studs || '—') + (sh.unpaid ? ' · ' + esc(sh.unpaid) + ' not paid out yet' : '') + '</div>';
-    // Student totals from everyone credited to them (families split shifts). Restored Nov 11: the old My shifts page had this per student.
-    (sh.students || []).filter(function (s) { return Number(s.hours) > 0; }).forEach(function (s) {
-      var n = Number(s.people) || 1, h = Math.round(Number(s.hours) * 100) / 100, u = Math.round(Number(s.unpaid) * 100) / 100;
-      out += '<div class="stutot" style="margin-top:8px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px"><b>' + esc(s.name) + '\u2019s total from everyone: ' + esc(h) + ' hours</b>' +
-        '<div class="small muted">' + (u ? esc(u) + ' not paid out yet · ' : '') + 'from ' + esc(n) + (n === 1 ? ' volunteer' : ' volunteers') + '</div></div>';
-    });
-    if (sh.unpaid && tot > 0) out += '<div class="small muted" style="margin-top:6px">' + esc(sh.unpaid) + ' not paid out yet</div>';
+    // Nov 14 (Nick): 2+ students and more than one volunteer = the card shows the family total by student; your hours sit beside it.
+    var fs = (sh.students || []).filter(function (s) { return Number(s.hours) > 0; }).sort(function (a, b) { return b.hours - a.hours; });
+    var fam = fs.length >= 2 && Number(sh.famPeople) > 1;
+    out += '<div class="card"><div class="row" style="margin:0"><span class="kicker">Hours this season</span><span class="small muted">' + esc(sh.shifts || 0) + ' game' + (Number(sh.shifts) === 1 ? '' : 's') + '</span></div>';
+    if (fam) {
+      var ft = Math.round(fs.reduce(function (a, s) { return a + Number(s.hours); }, 0) * 100) / 100, allUnpaid = fs.every(function (s) { return Number(s.unpaid) === Number(s.hours); });
+      out += '<div class="famtop"><div><div class="hrs" style="margin:0"><span class="n">' + esc(ft) + '</span></div><div class="small muted">Your ' + fs.length + ' students, ' + esc(sh.famPeople) + ' volunteers</div></div>' +
+        '<div class="you"><div class="n2">' + esc(sh.hours || 0) + '</div><div class="small muted">Your hours</div></div></div>';
+      out += '<div class="bar fam">' + fs.map(function (s, i) { return '<div style="width:' + (100 * s.hours / ft).toFixed(1) + '%;background:' + COL[i % COL.length] + '"></div>'; }).join('') + '</div>';
+      out += '<div class="famrows">' + fs.map(function (s, i) {
+        var mineH = Math.round((byStud[s.name] || 0) * 100) / 100, n = Number(s.people) || 1, u = Math.round(Number(s.unpaid) * 100) / 100;
+        return '<div class="frow"><div><div class="fn"><i style="background:' + COL[i % COL.length] + '"></i>' + esc(s.name) + '</div>' +
+          '<div class="small muted fs">' + (mineH ? 'You ' + esc(mineH) + ' · ' : '') + esc(n) + (n === 1 ? ' volunteer' : ' volunteers') + (!allUnpaid && u ? ' · ' + esc(u) + ' not paid' : '') + '</div></div>' +
+          '<div class="ft">' + esc(Math.round(Number(s.hours) * 100) / 100) + '</div></div>';
+      }).join('') + '</div>';
+      if (allUnpaid) out += '<div class="small muted" style="margin-top:8px">None paid out yet</div>';
+    } else {
+      out += '<div class="hrs"><span class="n">' + esc(sh.hours || 0) + '</span><span class="small muted" style="font-weight:600">hours</span></div>';
+      if (tot > 0) {
+        out += '<div class="bar">' + order.map(function (k, i) { return '<div style="width:' + (100 * byStud[k] / tot).toFixed(1) + '%;background:' + COL[i % COL.length] + '"></div>'; }).join('') + '</div>' +
+          '<div class="legend">' + order.map(function (k, i) { return '<span><i style="background:' + COL[i % COL.length] + '"></i>' + esc(k) + ' <b>' + esc(Math.round(byStud[k] * 100) / 100) + '</b></span>'; }).join('') + '</div>';
+      } else out += '<div class="small muted" style="margin-top:8px">Credited to: ' + (studs || '—') + (sh.unpaid ? ' · ' + esc(sh.unpaid) + ' not paid out yet' : '') + '</div>';
+      // Student totals from everyone credited to them (families split shifts). Restored Nov 11: the old My shifts page had this per student.
+      fs.forEach(function (s) {
+        var n = Number(s.people) || 1, h = Math.round(Number(s.hours) * 100) / 100, u = Math.round(Number(s.unpaid) * 100) / 100;
+        out += '<div class="stutot" style="margin-top:8px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px"><b>' + esc(s.name) + '\u2019s total from everyone: ' + esc(h) + ' hours</b>' +
+          '<div class="small muted">' + (u ? esc(u) + ' not paid out yet · ' : '') + 'from ' + esc(n) + (n === 1 ? ' volunteer' : ' volunteers') + '</div></div>';
+      });
+      if (sh.unpaid && tot > 0) out += '<div class="small muted" style="margin-top:6px">' + esc(sh.unpaid) + ' not paid out yet</div>';
+    }
+    // Pending review: the whole family's (anyone's shifts credited to one of these students, plus yours); yours underneath.
     var pq = (sh.pending || []).concat(sh.awaiting || []), pH = pq.reduce(function (a, x) { return a + (Number(x.hours) || 0); }, 0);
-    if (pq.length) out += '<div class="pend"><span class="dot"></span><span><b>' + (pH ? esc(Math.round(pH * 100) / 100) + (Number(sh.hours) ? ' more' : '') + ' hour' + (pH === 1 ? '' : 's') : pq.length + (Number(sh.hours) ? ' more' : '') + ' shift' + (pq.length > 1 ? 's' : '')) + '</b> pending review' +
-      (pH ? ' <span class="muted">(' + pq.length + ' shift' + (pq.length > 1 ? 's' : '') + ')</span>' : '') + '</span></div>';
+    var fp = sh.famPending || { hours: 0, shifts: 0 }, aw = (sh.awaiting || []), awH = aw.reduce(function (a, x) { return a + (Number(x.hours) || 0); }, 0);
+    var fH = Math.round(((Number(fp.hours) || 0) + awH) * 100) / 100, fN = (Number(fp.shifts) || 0) + aw.length, more = Number(sh.hours) ? ' more' : '';
+    var pl = function (n) { return n + ' shift' + (n === 1 ? '' : 's'); }, hr = function (h) { h = Math.round(h * 100) / 100; return esc(h) + more + ' hour' + (h === 1 ? '' : 's'); };
+    if (fN > pq.length) {
+      out += '<div class="pend"><span class="dot"></span><span><b>' + (fH ? hr(fH) : pl(fN) + more) + '</b> pending review' + (fH ? ' <span class="muted">(' + pl(fN) + ')</span>' : '') +
+        (pq.length ? '<br><span class="small">Yours: ' + (pH ? esc(Math.round(pH * 100) / 100) + ' (' + pl(pq.length) + ')' : pl(pq.length)) + '</span>' : '') + '</span></div>';
+    } else if (pq.length) out += '<div class="pend"><span class="dot"></span><span><b>' + (pH ? hr(pH) : pl(pq.length) + more) + '</b> pending review' +
+      (pH ? ' <span class="muted">(' + pl(pq.length) + ')</span>' : '') + '</span></div>';
     out += '</div>';
 
     // Quick links
