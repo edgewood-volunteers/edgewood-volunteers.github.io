@@ -522,25 +522,52 @@
       '<a class="li" href="mailto:' + LIAISON + '"><span class="l">' + ICON.mail + 'Contact the liaison</span>' + ICON.chev + '</a></div>';
 
     out += '</div>';
-    if (!asAdmin) out += '<div class="center small"><a href="#" id="leave">Leave the volunteer list</a> · <a href="#" id="signout">Forget me on this device</a>' +
-      (codes().length > 1 ? ' · <a href="#" id="forgetall">Forget everyone on this device</a>' : '') + '</div>';
+    if (!asAdmin) out += '<div class="center small"><a href="#" id="manage">Sign-ins &amp; my data on this device</a></div>';
     out += footer();
     h(out);
     if (!asAdmin) wireHeader(); else { wireAdminBar(); toolPersonWire(d.adminView || {}); }
     on('#cal', 'click', function () { calendar(d, asAdmin); });
     on('#hist', 'click', function () { history_(d, asAdmin); });
-    on('#leave', 'click', function (e) { e.preventDefault(); var en = activeEntry() || {}; leaveFlow(en.code ? { code: en.code } : { email: en.email }, function () { renderHome(d, false); }); });
-    on('#signout', 'click', function (e) {
-      e.preventDefault(); var en = activeEntry() || {};
-      if (!confirm('Forget ' + (en.first || 'this person') + ' on this device? You will need your code or email to sign in again.')) return;
-      dropEntry(en.id); home();
-    });
-    on('#forgetall', 'click', function (e) {
-      e.preventDefault();
-      if (!confirm('Forget everyone saved on this device?')) return;
-      try { localStorage.removeItem(KEY); localStorage.removeItem(ACTIVE); } catch (x) {} home();
-    });
+    on('#manage', 'click', function (e) { e.preventDefault(); manageDevice(d); });
     on('#usecode', 'click', function () { signIn(); });
+  }
+
+  /** Nov 14 (Nick): "Forget me", "Forget everyone" and "Leave the volunteer list" moved off the dashboard to their own screen,
+   *  each with an in-page confirm (no browser pop-ups). Forgetting also wipes the remembered pages, so nobody else's dashboard stays in memory. */
+  function manageDevice(d) {
+    state.page = 'Dashboard (manage device)';
+    var en = activeEntry() || {}, list = codes(), nm = esc(en.first || 'this person');
+    var ask = function (id, q, yes) {
+      return '<div class="confirm" id="' + id + 'c" hidden style="margin-top:10px;padding:10px 12px;border:1px solid #e0b4a8;border-radius:10px;background:#fff6f3"><p style="margin-top:0"><b>' + q + '</b></p>' +
+        '<button class="btn danger" id="' + id + 'y">' + yes + '</button> <button class="btn" data-no="' + id + '">Cancel</button></div>';
+    };
+    h(header(en.first, false) +
+      '<div class="card"><button class="btn sm" id="mback">← Back to my dashboard</button>' +
+      '<h2 style="margin-top:12px">Sign-ins &amp; my data</h2>' +
+      '<p class="muted">Saved on this device: <b>' + list.map(function (x) { return esc(x.first || (x.code ? fmtCode(x.code) : x.email)); }).join(', ') + '</b>.</p></div>' +
+      '<div class="card"><h3>Forget ' + nm + ' on this device</h3>' +
+      '<p class="muted small">Removes ' + nm + ' from this phone or computer only. Nothing changes in the Hub. To get back in, use the code from your Hub email or your email address.</p>' +
+      '<button class="btn" id="f1">Forget ' + nm + '</button>' +
+      ask('f1', 'Forget ' + nm + ' on this device?', 'Yes, forget ' + nm) + '</div>' +
+      (list.length > 1 ? '<div class="card"><h3>Forget everyone on this device</h3>' +
+        '<p class="muted small">Removes all ' + list.length + ' people saved here. Use this on a shared or borrowed device.</p>' +
+        '<button class="btn" id="fa">Forget everyone</button>' +
+        ask('fa', 'Forget all ' + list.length + ' people on this device?', 'Yes, forget everyone') + '</div>' : '') +
+      '<div class="card"><h3>Leave the volunteer list</h3>' +
+      '<p class="muted small">Stops Hub emails about shifts and paperwork. You pick who leaves on the next screen.</p>' +
+      '<button class="btn" id="lv">Leave the volunteer list…</button></div>' + footer());
+    wireHeader();
+    var show = function (id) {
+      Array.prototype.forEach.call(root.querySelectorAll('.confirm'), function (c) { c.hidden = true; });
+      var c = document.getElementById(id + 'c'); c.hidden = false; c.scrollIntoView({ block: 'nearest' });
+    };
+    on('#mback', 'click', function () { renderHome(d, false); });
+    on('[data-no]', 'click', function () { document.getElementById(this.getAttribute('data-no') + 'c').hidden = true; });
+    on('#f1', 'click', function () { show('f1'); });
+    on('#fa', 'click', function () { show('fa'); });
+    on('#f1y', 'click', function () { homeC(true); dropEntry(en.id); home(); });
+    on('#fay', 'click', function () { homeC(true); try { localStorage.removeItem(KEY); localStorage.removeItem(ACTIVE); } catch (x) {} home(); });
+    on('#lv', 'click', function () { leaveFlow(en.code ? { code: en.code } : { email: en.email }, function () { manageDevice(d); }); });
   }
 
   // ---------- calendar of my shifts
