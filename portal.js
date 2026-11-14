@@ -149,7 +149,7 @@
     if (adminSess()) {
       state.admin = true;
       if (p0) return adminView(p0);
-      var t0 = qs.get('tool'), T0 = { review: toolReview, family: toolFamily, cancel: toolCancel, sheets: toolSheets, logs: toolLogs, noshows: toolNoShows, walkin: toolWalkIn, health: toolHealth };
+      var t0 = qs.get('tool'), T0 = { home: adminToolsHome, review: toolReview, family: toolFamily, cancel: toolCancel, sheets: toolSheets, logs: toolLogs, noshows: toolNoShows, walkin: toolWalkIn, health: toolHealth };
       if (t0 && T0[t0]) return T0[t0]();
       if (qs.get('ms')) { state.canManage = adminLevel() >= 3; return adminManage(qs.get('ev') || '', d0); }
       if (r0 && d0) return adminRoster(r0, d0);
@@ -636,10 +636,11 @@
   function adminBar() {
     var a = adminSess() || {};
     return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">' + esc(a.name || '') + (a.levelName ? ' · <span id="admlvl">' + esc(a.levelName) + '</span>' : '') + ' · every lookup and change is logged</div></div>' +
-      '<div class="pills"><a class="pill" href="' + location.pathname + '" style="text-decoration:none">My dashboard</a><button class="pill" id="adms">Search</button><button class="pill" id="admd">Directory</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
+      '<div class="pills"><a class="pill" href="' + location.pathname + '" style="text-decoration:none">My dashboard</a><button class="pill" id="adms">Search</button><button class="pill" id="admt">Hub tools</button><button class="pill" id="admd">Directory</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
   }
   function wireAdminBar() {
     on('#adms', 'click', adminSearch);
+    on('#admt', 'click', adminToolsHome);
     on('#admd', 'click', function () { try { history.replaceState(null, '', location.pathname + '?view=directory'); } catch (e) {} dirView(); });
     on('#admx', 'click', function () { adminLeaveUrl(); state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home(); });
     on('#admo', 'click', function () {
@@ -651,12 +652,10 @@
   function adminSearch() {
     adminUrl();
     h(adminBar() + '<div class="cols"><div class="card"><h2>Look up a volunteer</h2><input id="q" placeholder="Name, email, or phone number"><button class="btn primary" id="go">Search</button><p class="err" id="msg"></p><div id="res"></div></div>' +
-      '<div class="card"><h2>Hub tools</h2><div id="htools"><div class="spin"></div></div></div>' +
       '<div class="card"><h2>Stands (last 3 days)</h2><div id="stands"><div class="spin"></div></div></div>' +
       '<div class="card wide"><h2>Hub games</h2><p class="small muted">Rosters: move, remove, add or hand off. Every change is stamped and logged.</p><div id="hubgames"><div class="spin"></div></div></div>' +
       '<div class="card wide"><h2>SignUp.com games</h2><p class="small muted">Who is working each stand, with group-text buttons. Changes still happen on SignUp.com.</p><div id="sugames"><div class="spin"></div></div></div></div>' + footer());
     wireAdminBar();
-    adminToolsCard();
     adminHubList();
     adminSuList();
     call('adminStands', adminReq({})).then(function (r) {
@@ -691,7 +690,7 @@
     return adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="tback">← Back</button><b>' + esc(title) + '</b><span></span></div>' +
       (sub ? '<p class="small muted">' + sub + '</p>' : '') + '<p id="tmsg" class="ok" style="font-weight:700;white-space:pre-line"></p></div>';
   }
-  function toolWire() { wireAdminBar(); on('#tback', 'click', adminSearch); }
+  function toolWire() { wireAdminBar(); on('#tback', 'click', adminToolsHome); }
   function toolMsg(t, c) { var m = document.getElementById('tmsg'); if (!m) return; m.textContent = t || ''; m.className = c || 'ok'; m.style.fontWeight = '700'; }
   /** Two taps for anything that sends email or can't be undone. */
   function twoTap(btn, label, go) {
@@ -699,7 +698,15 @@
     btn.setAttribute('data-arm', '1'); btn.setAttribute('data-was', btn.textContent); btn.textContent = label;
     setTimeout(function () { if (btn.getAttribute('data-arm')) { btn.removeAttribute('data-arm'); btn.textContent = btn.getAttribute('data-was'); } }, 5000);
   }
-  /** Admin home card: the tools this admin's level can use. */
+  /** Nov 14 (Nick): Hub tools is its own screen, opened from the "Hub tools" pill in the admin bar. */
+  function adminToolsHome() {
+    adminUrl({ tool: 'home' }); state.page = 'Portal admin tools';
+    h(adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="tback">← Back</button><b>Hub tools</b><span></span></div>' +
+      '<p class="small muted">Jobs from the Hub spreadsheet\'s menu. You see the ones your admin level can use.</p><div id="htools"><div class="spin"></div></div></div>' + footer());
+    wireAdminBar(); on('#tback', 'click', adminSearch);
+    adminToolsCard();
+  }
+  /** The list of tools this admin's level can use (on the Hub tools screen). */
   function adminToolsCard() {
     var el = document.getElementById('htools'); if (!el) return;
     call('adminTools', adminReq({})).then(function (r) {
@@ -714,7 +721,7 @@
       add(2, 'tl_walkin', 'Add a worker by hand', 0, 'Someone working a stand who isn\'t signed up');
       add(3, 'tl_cancel', 'Cancel a stand or game', 0, 'Weather, IU or Levy changes; emails who is signed up');
       add(4, 'tl_health', 'Hub health', r.health, r.health ? 'Things to look at' : 'Safety breakers, email, daily checks');
-      if (!b.length) { el.parentNode.style.display = 'none'; return; }
+      if (!b.length) { el.innerHTML = '<p class="muted">Your admin level doesn\'t include any Hub tools.</p>'; return; }
       el.innerHTML = b.join('');
       on('#tl_review', 'click', function () { toolReview(); });
       on('#tl_family', 'click', toolFamily);
@@ -726,7 +733,7 @@
       on('#tl_health', 'click', toolHealth);
     }).catch(function (e) {
       if (/expired|sign in with google/i.test(e.message)) return adminFail(e);
-      el.parentNode.style.display = 'none';   // an older Hub without section 34
+      el.innerHTML = '<p class="muted">Hub tools aren\'t available on this Hub yet.</p>';   // an older Hub without section 34
     });
   }
   // --- paperwork review
