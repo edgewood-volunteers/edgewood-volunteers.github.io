@@ -149,7 +149,7 @@
     if (adminSess()) {
       state.admin = true;
       if (p0) return adminView(p0);
-      if (qs.get('ms')) { state.canManage = true; return adminManage(qs.get('ev') || '', d0); }
+      if (qs.get('ms')) { state.canManage = adminLevel() >= 3; return adminManage(qs.get('ev') || '', d0); }
       if (r0 && d0) return adminRoster(r0, d0);
       if (s0 && d0) return adminSuRoster(s0, d0);
       if (qs.get('day')) return adminDay(qs.get('day'));
@@ -602,6 +602,9 @@
 
   // ---------- admin (Google sign-in; the Hub checks the account against Lists › Portal admins)
   function adminSess() { var a = store(ADMIN); return a && a.session && a.expires > Date.now() ? a : null; }
+  /** Admin level (section 33 on the Hub): 1 Viewer, 2 Coordinator, 3 Manager, 4 Full. Older Hubs send none = Full. The Hub enforces it; this only hides buttons. */
+  function adminLevel() { var a = adminSess() || {}; return a.level || 4; }
+  function adminLevelSet(r) { if (!r || !r.level) return; var a = adminSess(); if (a && (a.level !== r.level || a.levelName !== r.levelName)) { a.level = r.level; a.levelName = r.levelName; store(ADMIN, a); var e = document.getElementById('admlvl'); if (e) e.textContent = r.levelName; } }
   /** Put the current admin screen in the address bar (replace, not a new history entry). extra = { p } or { hub, d } or { su, d }. */
   function adminUrl(extra) {
     var q = new URLSearchParams({ view: 'admin' }); for (var k in (extra || {})) if (extra[k]) q.set(k, extra[k]);
@@ -630,7 +633,7 @@
   }
   function adminBar() {
     var a = adminSess() || {};
-    return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">' + esc(a.name || '') + ' · every lookup and change is logged</div></div>' +
+    return '<header class="adminhdr"><div><div class="title">Admin view</div><div class="sub">' + esc(a.name || '') + (a.levelName ? ' · <span id="admlvl">' + esc(a.levelName) + '</span>' : '') + ' · every lookup and change is logged</div></div>' +
       '<div class="pills"><a class="pill" href="' + location.pathname + '" style="text-decoration:none">My dashboard</a><button class="pill" id="adms">Search</button><button class="pill" id="admd">Directory</button><button class="pill" id="admx">Exit admin</button><button class="pill" id="admo">Sign out</button></div></header>';
   }
   function wireAdminBar() {
@@ -660,7 +663,7 @@
         var head = x.date !== day ? '<div class="small muted" style="margin-top:8px"><b>' + (x.today ? 'Today · ' : '') + esc(x.date) + '</b></div>' : ''; day = x.date;
         return head + '<div class="hrow"><span><b>' + esc(x.stand) + '</b>' + (x.event ? ' · ' + esc(x.event) : '') +
           '<div class="small muted">' + (x.chair ? 'Lead ' + esc(x.chair) + ' · ' : '') + esc(x.status) + (x.submittedBy ? ' · by ' + esc(x.submittedBy) : '') + '</div></span>' +
-          (x.act ? '<a class="btn sm" href="' + esc(toSite(x.act)) + '">Time sheet</a>' : '<span class="small muted">approved</span>') + '</div>';
+          (x.act ? '<a class="btn sm" href="' + esc(toSite(x.act)) + '">Time sheet</a>' : x.view ? '' : '<span class="small muted">approved</span>') + '</div>';
       }).join('');
     }).catch(function (e) { var el = document.getElementById('stands'); if (/expired|sign in with google/i.test(e.message)) return adminFail(e); if (el) el.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; });
     var go = function () {
@@ -902,8 +905,9 @@
   function adminHubList() {
     var el = document.getElementById('hubgames'); if (!el) return;
     call('adminHubGames', adminReq({})).then(function (r) {
-      state.canManage = !!r.manage;   // Hubs with section 32 (Manage stands in the admin view)
-      var mb = r.manage ? '<button class="btn primary" id="mstands" style="margin:0 0 8px">Manage stands: create or edit a Hub game</button>' : '';
+      adminLevelSet(r);
+      state.canManage = !!r.manage && adminLevel() >= 3;   // Hubs with section 32 (Manage stands in the admin view); Manager and up
+      var mb = state.canManage ? '<button class="btn primary" id="mstands" style="margin:0 0 8px">Manage stands: create or edit a Hub game</button>' : '';
       if (!r.games.length) { el.innerHTML = mb + '<p class="muted">No upcoming Hub games.</p>'; on('#mstands', 'click', function () { adminManage(); }); return; }
       el.innerHTML = mb + r.games.map(function (g) {
         return '<div class="hrow"><span><b>' + esc(g.name) + '</b><div class="small muted">' + esc(g.day) + ' · ' + g.f + ' of ' + g.q + ' filled · ' +
@@ -1039,12 +1043,12 @@
             o += '<div class="hrow"><span>' + esc(x.name) + (x.minor ? ' <span class="small muted">(minor)</span>' : '') +
               '<div class="small muted">' + (x.phone ? '<a href="' + telLink(x.phone) + '">' + esc(x.phone) + '</a> · ' : '') + esc(x.credit || 'credit on file') + (x.program ? ' · ' + esc(x.program) : '') +
               (x.hand ? ' · handing off to ' + esc(x.hand) : '') + (x.by ? ' · by ' + esc(x.by) : '') + '</div></span>' +
-              (st.canceled ? '' : '<span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sm rop" data-op="move" data-key="' + esc(x.key) + '" data-name="' + esc(x.name) + '">Move</button>' +
+              (st.canceled || adminLevel() < 2 ? '' : '<span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sm rop" data-op="move" data-key="' + esc(x.key) + '" data-name="' + esc(x.name) + '">Move</button>' +
               '<button class="btn sm rop" data-op="hand" data-key="' + esc(x.key) + '" data-name="' + esc(x.name) + '">Hand off</button>' +
               '<button class="btn sm rop" data-op="remove" data-key="' + esc(x.key) + '" data-name="' + esc(x.name) + '">Remove</button></span>') + '</div>';
           });
           if (p.wait.length) o += '<div class="small muted">Waitlist: ' + p.wait.map(esc).join(', ') + '</div>';
-          if (!st.canceled) o += '<button class="btn sm rop" data-op="add" data-task="' + esc(p.task) + '" style="margin-top:4px">+ Add someone</button>';
+          if (!st.canceled && adminLevel() >= 2) o += '<button class="btn sm rop" data-op="add" data-task="' + esc(p.task) + '" style="margin-top:4px">+ Add someone</button>';
         });
         o += '</div>';
       });
