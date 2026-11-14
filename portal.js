@@ -107,7 +107,7 @@
     var list = codes().filter(function (x) { return x.id !== e.id && !(e.code && x.limited && x.personId === e.personId); });   // a code replaces the same person's email sign-in
     list.unshift(e); store(KEY, list.slice(0, 8)); store(ACTIVE, e.id);
   }
-  function saveCode(code, first, personId) { saveEntry({ code: code, first: first || '', personId: personId || '' }); }
+  function saveCode(code, first, personId, g) { var e = { code: code, first: first || '', personId: personId || '' }; if (g) e.g = 1; saveEntry(e); }   // g: came from Sign in with Google
   function dropEntry(id) { store(KEY, codes().filter(function (x) { return x.id !== id; })); if (store(ACTIVE) === id) store(ACTIVE, (codes()[0] || {}).id || null); }
   function activeEntry() { var a = store(ACTIVE), list = codes(); return list.filter(function (x) { return x.id === a; })[0] || list[0] || null; }
   function activeCode() { var e = activeEntry(); return e && e.code ? e.code : null; }
@@ -264,7 +264,7 @@
       state.page = 'Portal (Google)';
       spinner('Signing you in with Google…');   // the Hub check takes a few seconds; show it right away
       call('portalGoogle', { credential: cred }).then(function (r) {
-        if (r.people && r.people.length) { r.people.slice().reverse().forEach(function (p) { saveCode(p.code, p.first, p.personId); }); return home(); }
+        if (r.people && r.people.length) { r.people.slice().reverse().forEach(function (p) { saveCode(p.code, p.first, p.personId, true); }); return home(); }
         googleNew(r, cred);
       }).catch(function (e) { signIn(); var m = document.getElementById('msg'); if (m) m.textContent = e.message; });
     });
@@ -357,7 +357,7 @@
       var c = normCode(document.getElementById('lcode').value), msg = document.getElementById('msg'); msg.textContent = '';
       if (c.length < 6) { msg.textContent = 'Enter the 8-letter code from your Hub email.'; return; }
       var lb = document.getElementById('link'); if (lb.disabled) return; var undo = busy(lb, 'Linking…');
-      call('portalGoogleLink', { credential: cred, code: c }).then(function (p) { saveCode(p.code, p.first, p.personId); home(); })
+      call('portalGoogleLink', { credential: cred, code: c }).then(function (p) { saveCode(p.code, p.first, p.personId, true); home(); })
         .catch(function (e) { undo(); msg.textContent = /confirm that sign-in/i.test(e.message) ? 'Your Google sign-in timed out. Tap Back and sign in with Google again.' : e.message; });
     };
     on('#link', 'click', go); on('#lcode', 'keydown', function (e) { if (e.key === 'Enter') go(); });
@@ -538,6 +538,7 @@
     state.page = 'Dashboard (manage device)';
     var en = activeEntry() || {}, list = codes(), nm = esc(en.first || 'this person');
     var nameOf = function (x) { return esc(x.first || (x.code ? fmtCode(x.code) : x.email)); };
+    var gl = list.filter(function (x) { return x.g; });
     var ask = function (id, q, yes) {
       return '<div class="confirm" id="' + id + 'c" hidden style="margin-top:10px;padding:10px 12px;border:1px solid #e0b4a8;border-radius:10px;background:#fff6f3"><p style="margin-top:0"><b>' + q + '</b></p>' +
         '<button class="btn danger" id="' + id + 'y">' + yes + '</button> <button class="btn" data-no="' + id + '">Cancel</button></div>';
@@ -554,6 +555,9 @@
       '<h2 style="margin-top:12px">Sign-ins &amp; my data</h2>' +
       '<p class="muted small">Forgetting someone removes them from this phone or computer only. Nothing changes in the Hub. To get back in, use the code from your Hub email or your email address.</p></div>' +
       '<div class="card"><h3>Saved on this device</h3>' + rows +
+      '<p class="small" style="margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#eef3fb">' +
+        (gl.length ? '<b>Signed in with Google:</b> ' + gl.map(nameOf).join(', ') + '. ' : '<b>Signed in with Google?</b> ') +
+        'Signing in with Google again brings back everyone on that Google account. On a shared device, also sign out of your Google account in this browser.</p>' +
       (list.length > 1 ? '<div style="padding-top:12px;border-top:1px solid #e6ebf1"><button class="btn" id="fa">Forget everyone (' + list.length + ')</button>' +
         '<p class="muted small" style="margin:6px 0 0">Use this on a shared or borrowed device.</p>' +
         ask('fa', 'Forget all ' + list.length + ' people on this device?', 'Yes, forget everyone') + '</div>' : '') + '</div>' +
@@ -577,7 +581,11 @@
       });
     });
     on('#fa', 'click', function () { show('fa'); });
-    on('#fay', 'click', function () { homeC(true); try { localStorage.removeItem(KEY); localStorage.removeItem(ACTIVE); } catch (x) {} home(); });
+    on('#fay', 'click', function () {
+      homeC(true); try { localStorage.removeItem(KEY); localStorage.removeItem(ACTIVE); } catch (x) {}
+      try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch (x) {}   // Google won't pick an account on its own next time
+      home();
+    });
     on('#lv', 'click', function () { leaveFlow(en.code ? { code: en.code } : { email: en.email }, function () { manageDevice(d); }); });
   }
 
