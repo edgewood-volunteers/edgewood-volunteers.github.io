@@ -86,10 +86,9 @@
     ].join('\n');
     var s = document.createElement('style'); s.id = 'hubv2css'; s.textContent = css; document.head.appendChild(s);
   })();
-  // ---------- dark mode (Nov 14, Nick; sandbox only for now). html.dark when the setting says Dark, or Match my phone and the phone is dark.
+  // ---------- dark mode (Nov 14, Nick; live since Nov 15). html.dark when the setting says Dark, or Match my phone and the phone is dark.
   // Overrides only: the light styles above stay the source. Inline colors are caught with [style*=...] selectors.
   (function () {
-    if (!(ENV !== 'LIVE' || window.HUB_DARK)) return;
     var D = 'html.dark ', H = D + '#hub.portal ', c = [
       D + 'body{background:#0A0F1A;color:#E2E8F0}',
       D + '.wrap h1{color:#E2E8F0}' + D + '.wrap p{color:#A3B1C6}' + D + '.spin{border-color:#334155;border-top-color:#F5B700}',
@@ -158,7 +157,7 @@
   // iPhone: Apple lets no page do that, so the button shows the 3 taps over the page. Never shown inside the
   // home-screen app itself, on computers, in the admin view, or after "Not now" on that phone.
   // A2HS_LIVE false = sandbox only (live turns on when Nick says).
-  var A2HS_LIVE = false;
+  var A2HS_LIVE = true;   // Nov 15: on for live
   var A2 = (function () {
     var ua = navigator.userAgent || '', ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     var android = /Android/.test(ua), standalone = false;
@@ -219,6 +218,7 @@
   }
 
   // ---------- helpers
+  function to24(t) { var m = String(t || '').match(/(\d{1,2}):(\d{2})\s*([AP]M)?/i); if (!m) return ''; var hh = +m[1]; if (m[3]) { hh = hh % 12; if (/p/i.test(m[3])) hh += 12; } return ('0' + hh).slice(-2) + ':' + m[2]; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function normCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
   function fmtCode(c) { c = normCode(c); return c.length === 8 ? c.slice(0, 4) + '-' + c.slice(4) : c; }
@@ -296,7 +296,7 @@
   /** Nov 14 (Nick): on wide screens, stack the cards in two columns with no gaps (each card goes under the shorter column,
    *  in page order). Wide cards still span both columns. Phones keep the single column. */
   function packCols() {
-    if (window.innerWidth < 900 || (ENV === 'LIVE' && !window.HUB_DARK)) return;   // sandbox only for now, like dark mode
+    if (window.innerWidth < 900) return;   // Nov 15: live too
     Array.prototype.forEach.call(root.querySelectorAll('.cols'), function (el) {
       if (el.classList.contains('packed')) return;
       var kids = Array.prototype.slice.call(el.children), hts = kids.map(function (k) { return k.offsetHeight; }), seg = null, L, R, hl = 0, hr = 0;
@@ -1212,13 +1212,36 @@
           o += '<div style="border-top:1px solid #e2e8f0;padding:8px 0"><label class="chk" style="padding:0"><input type="checkbox" class="lg" data-g="' + gi + '" value="' + esc(x.id) + '"' + (x.two ? ' disabled' : ' checked') + '> <b>' + esc(x.worker) + '</b> ' +
             (x.worked === 'Worked' ? esc(x.tin) + '–' + esc(x.tout) + ' · ' + x.hours + ' h' : '<span class="err">' + esc(x.worked || 'No-show') + '</span>') + '</label>' +
             '<div class="small muted" style="margin-left:24px">For ' + esc(x.student || x.credit || '(no student)') + (x.program ? ' · ' + esc(x.program) : '') + '</div>' +
+            // Nov 15: the liaison's time fix (the lead's times stay as sent; the adjusted ones count)
+            (x.adj ? '<div class="small" style="margin-left:24px;color:#1d4ed8">' + esc(x.adj) + (x.aby ? ' · ' + esc(x.aby) : '') + '</div>' : '') +
+            (x.worked === 'Worked' ? '<div style="margin-left:24px"><a href="#" class="small ladj" data-id="' + esc(x.id) + '">' + (x.adj ? 'Change adjustment' : 'Adjust times') + '</a>' +
+              '<div class="lafm" hidden data-id="' + esc(x.id) + '" style="margin-top:6px;padding:8px;border:1px solid #cbd5e1;border-radius:8px">' +
+              '<div class="small muted">Lead sent ' + esc(x.lin || '?') + '–' + esc(x.lout || '?') + '. Change what the sign-in sheet shows; the lead\'s times are kept.</div>' +
+              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"><label class="small">Time in<input type="time" class="lai" value="' + to24(x.ain || x.lin) + '"></label>' +
+              '<label class="small">Time out<input type="time" class="lao" value="' + to24(x.aout || x.lout) + '"></label></div>' +
+              '<label class="small" style="display:block;margin-top:6px">Reason<input class="lar" list="adjReasons" value="' + esc(x.areason || (r.reasons || [])[0] || '') + '" placeholder="Matched to sign-in photo"></label>' +
+              '<div style="margin-top:6px"><button class="btn primary lasave" data-id="' + esc(x.id) + '" data-lin="' + esc(to24(x.lin)) + '" data-lout="' + esc(to24(x.lout)) + '">Save adjustment</button>' +
+              (x.adj ? ' <button class="btn laclr" data-id="' + esc(x.id) + '">Undo (use the lead\'s times)</button>' : '') + '<span class="small lamsg"></span></div></div></div>' : '') +
             (x.two ? '<div class="small err" style="margin-left:24px">Names more than one student (' + esc(x.credit) + '). Fix "Credit to" on the Stand Log tab first.</div>' : '') +
             (x.flags && !x.two ? '<div class="small" style="margin-left:24px;color:#b45309">Flags: ' + esc(x.flags) + (x.early ? ' · early start ' + esc(x.early) : '') + '</div>' +
               '<input class="lr" data-id="' + esc(x.id) + '" placeholder="Why is this OK? (saved as the approval reason)" value="' + esc(x.reason) + '" style="margin-left:24px;width:calc(100% - 24px)">' : '') + '</div>';
         });
         o += '<button class="btn primary lgo" data-g="' + gi + '">Approve the checked lines</button><p class="small lmsg" data-g="' + gi + '"></p></div>';
       });
+      o += '<datalist id="adjReasons">' + (r.reasons || []).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
       h(o + footer()); toolWire(); if (typeof flash === 'string') toolMsg(flash);
+      on('.ladj', 'click', function (e) { e.preventDefault(); var f = root.querySelector('.lafm[data-id="' + this.getAttribute('data-id') + '"]'); if (f) f.hidden = !f.hidden; });
+      var adjSend = function (b, clear) {
+        var f = b.closest('.lafm'), m = f.querySelector('.lamsg'), ai = clear ? '' : f.querySelector('.lai').value, ao = clear ? '' : f.querySelector('.lao').value, why = clear ? '' : f.querySelector('.lar').value.trim();
+        if (!clear && ai === b.getAttribute('data-lin') && ao === b.getAttribute('data-lout')) { m.className = 'small err lamsg'; m.textContent = ' Those are the lead\'s times. Change a time first.'; return; }
+        if (!clear && !why) { m.className = 'small err lamsg'; m.textContent = ' Pick a reason.'; return; }
+        b.disabled = true; m.className = 'small lamsg'; m.textContent = ' Saving…';
+        call('adminLogAdjust', adminReq({ id: b.getAttribute('data-id'), adjIn: ai, adjOut: ao, reason: why })).then(function (x) {
+          toolLogs('Saved: ' + x.note + (x.hours !== '' ? ' (' + x.hours + ' h)' : '') + '.');
+        }).catch(function (e) { b.disabled = false; toolErr(m, e); });
+      };
+      on('.lasave', 'click', function () { adjSend(this, false); });
+      on('.laclr', 'click', function () { adjSend(this, true); });
       on('.lgo', 'click', function () {
         var b = this, gi = b.getAttribute('data-g'), m = root.querySelector('.lmsg[data-g="' + gi + '"]'), reasons = {};
         var ids = Array.prototype.map.call(root.querySelectorAll('.lg[data-g="' + gi + '"]:checked'), function (c) { return c.value; });
