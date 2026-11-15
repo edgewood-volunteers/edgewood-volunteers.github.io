@@ -815,7 +815,7 @@
         '<div class="right"><b>' + esc(x.hours) + 'h</b><div class="small muted">' + esc(x.status || '') + '</div></div></div>';
     });
     (sh.pending || []).concat(sh.awaiting || []).forEach(function (x) {
-      o += '<div class="hrow"><div><b>' + esc(x.date) + '</b> ' + esc(x.event || '') + '<div class="small muted">' + esc(x.stand || '') + '</div></div><div class="right">' + (Number(x.hours) ? '<b>' + esc(x.hours) + 'h</b>' : '') + '<div class="small" style="color:#B45309">' + (x.review ? 'times being checked' : 'pending review') + '</div></div></div>';
+      o += '<div class="hrow"><div><b>' + esc(x.date) + '</b> ' + esc(x.event || '') + '<div class="small muted">' + esc(x.stand || '') + '</div></div><div class="right">' + (Number(x.hours) ? '<b>' + esc(x.hours) + 'h</b>' : '') + '<div class="small" style="color:#B45309">' + (x.review ? 'times being checked' : x.adjusted ? 'adjusted by the liaison' : 'pending review') + '</div></div></div>';
     });
     h(o + '</div>' + footer());
     if (!asAdmin) wireHeader(); else wireAdminBar();
