@@ -1223,8 +1223,8 @@
               '<div style="margin-top:6px"><button class="btn primary lasave" data-id="' + esc(x.id) + '" data-lin="' + esc(to24(x.lin)) + '" data-lout="' + esc(to24(x.lout)) + '">Save adjustment</button>' +
               (x.adj ? ' <button class="btn laclr" data-id="' + esc(x.id) + '">Undo (use the lead\'s times)</button>' : '') + '<span class="small lamsg"></span></div></div></div>' : '') +
             (x.two ? '<div class="small err" style="margin-left:24px">Names more than one student (' + esc(x.credit) + '). Fix "Credit to" on the Stand Log tab first.</div>' : '') +
-            (x.flags && !x.two ? '<div class="small" style="margin-left:24px;color:#b45309">Flags: ' + esc(x.flags) + (x.early ? ' · early start ' + esc(x.early) : '') + '</div>' +
-              '<input class="lr" data-id="' + esc(x.id) + '" placeholder="Why is this OK? (saved as the approval reason)" value="' + esc(x.reason) + '" style="margin-left:24px;width:calc(100% - 24px)">' : '') + '</div>';
+            (x.flags && !x.two ? '<div class="small" style="margin-left:24px;color:#b45309">Flags: ' + esc(x.flags) + (x.early ? ' · early start ' + esc(x.early) : '') + (x.adj && x.areason ? ' (from the lead\'s times; the adjustment is the reason)' : '') + '</div>' +
+              (x.adj && x.areason ? '' : '<input class="lr" data-id="' + esc(x.id) + '" placeholder="Why is this OK? (saved as the approval reason)" value="' + esc(x.reason) + '" style="margin-left:24px;width:calc(100% - 24px)">') : '') + '</div>';
         });
         o += '<button class="btn primary lgo" data-g="' + gi + '">Approve the checked lines</button><p class="small lmsg" data-g="' + gi + '"></p></div>';
       });
