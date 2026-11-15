@@ -671,11 +671,13 @@
     var fp = sh.famPending || { hours: 0, shifts: 0 }, aw = (sh.awaiting || []), awH = aw.reduce(function (a, x) { return a + (Number(x.hours) || 0); }, 0);
     var fH = Math.round(((Number(fp.hours) || 0) + awH) * 100) / 100, fN = (Number(fp.shifts) || 0) + aw.length, more = Number(sh.hours) ? ' more' : '';
     var pl = function (n) { return n + ' shift' + (n === 1 ? '' : 's'); }, hr = function (h) { h = Math.round(h * 100) / 100; return esc(h) + more + ' hour' + (h === 1 ? '' : 's'); };
+    // Nov 15: flagged lines come without hours (review: true) and aren't in the hour totals; say how many are still being checked.
+    var chk = function (n) { return n ? '<br><span class="small">' + pl(n) + ' being checked. Hours show once approved.</span>' : ''; }, myRv = pq.filter(function (x) { return x.review; }).length;
     if (fN > pq.length) {
       out += '<div class="pend"><span class="dot"></span><span><b>' + (fH ? hr(fH) : pl(fN) + more) + '</b> pending review' + (fH ? ' <span class="muted">(' + pl(fN) + ')</span>' : '') +
-        (pq.length ? '<br><span class="small">Yours: ' + (pH ? esc(Math.round(pH * 100) / 100) + ' (' + pl(pq.length) + ')' : pl(pq.length)) + '</span>' : '') + '</span></div>';
+        (pq.length ? '<br><span class="small">Yours: ' + (pH ? esc(Math.round(pH * 100) / 100) + ' (' + pl(pq.length) + ')' : pl(pq.length)) + '</span>' : '') + chk(Number(fp.review) || 0) + '</span></div>';
     } else if (pq.length) out += '<div class="pend"><span class="dot"></span><span><b>' + (pH ? hr(pH) : pl(pq.length) + more) + '</b> pending review' +
-      (pH ? ' <span class="muted">(' + pl(pq.length) + ')</span>' : '') + '</span></div>';
+      (pH ? ' <span class="muted">(' + pl(pq.length) + ')</span>' : '') + chk(myRv) + '</span></div>';
     out += '</div>';
 
     if (!asAdmin) out += a2hsCard();
@@ -813,7 +815,7 @@
         '<div class="right"><b>' + esc(x.hours) + 'h</b><div class="small muted">' + esc(x.status || '') + '</div></div></div>';
     });
     (sh.pending || []).concat(sh.awaiting || []).forEach(function (x) {
-      o += '<div class="hrow"><div><b>' + esc(x.date) + '</b> ' + esc(x.event || '') + '<div class="small muted">' + esc(x.stand || '') + '</div></div><div class="right">' + (Number(x.hours) ? '<b>' + esc(x.hours) + 'h</b>' : '') + '<div class="small" style="color:#B45309">pending review</div></div></div>';
+      o += '<div class="hrow"><div><b>' + esc(x.date) + '</b> ' + esc(x.event || '') + '<div class="small muted">' + esc(x.stand || '') + '</div></div><div class="right">' + (Number(x.hours) ? '<b>' + esc(x.hours) + 'h</b>' : '') + '<div class="small" style="color:#B45309">' + (x.review ? 'times being checked' : 'pending review') + '</div></div></div>';
     });
     h(o + '</div>' + footer());
     if (!asAdmin) wireHeader(); else wireAdminBar();
