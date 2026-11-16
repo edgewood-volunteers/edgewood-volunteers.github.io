@@ -477,14 +477,14 @@
   /** Nov 16 (Nick): someone who opened their page with a code (the personal link we text or email) gets a card to link
    *  their Google account, so next time "Sign in with Google" opens their page with no code. Uses the same portalGoogleLink
    *  as the "Already a volunteer?" box. Hidden once this device signed in with Google, or after "Not now" (per person, per device). */
-  function gLinkCard(d) {
+  function gLinkCard(d, always) {   // always: on Sign-ins & my data, even after "Not now"
     var ent = activeEntry() || {};
     if (!window.HUB_GOOGLE_CLIENT_ID || d.limited || !ent.code || ent.g) return '';
-    try { if (localStorage.getItem(PFX + 'gNo_' + ent.id)) return ''; } catch (e) {}
+    if (!always) try { if (localStorage.getItem(PFX + 'gNo_' + ent.id)) return ''; } catch (e) {}
     return '<div class="card" id="glink"><h2>Sign in faster with Google</h2>' +
       '<p class="muted">Link your Google account once. Next time, just tap <b>Sign in with Google</b>: no code needed.</p>' +
       '<div id="gbtnL" class="gbtn"></div><p class="err" id="gmsg"></p>' +
-      '<div class="center small" style="margin-top:8px"><a href="#" id="gNo">Not now</a></div></div>';
+      (always ? '' : '<div class="center small" style="margin-top:8px"><a href="#" id="gNo">Not now</a> · <span class="muted">You can link it later under Sign-ins &amp; my data.</span></div>') + '</div>';
   }
   function gLinkWire() {
     var ent = activeEntry() || {}, card = document.getElementById('glink'); if (!card) return;
@@ -764,13 +764,14 @@
         'Signing in with Google again brings back everyone on that Google account. On a shared device, also sign out of Google in this browser.' +
         '<br><a class="btn sm" href="https://accounts.google.com/Logout" target="_blank" rel="noopener" style="margin-top:8px;display:inline-block;width:auto">Sign out of Google</a>' +
         '<br><span class="muted">This signs this browser out of every Google account (Gmail too).</span></p>' + '</div>' +
+      gLinkCard(d, true) +
       (window.__hubTheme ? '<div class="card"><h3>Appearance</h3><p class="muted small" style="margin:0 0 8px">Light or dark, on this device only.</p>' +
         '<div style="display:flex;gap:6px">' + [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']].map(function (o) {
           return '<button class="btn sm thm" data-t="' + o[0] + '" style="flex:1">' + o[1] + '</button>'; }).join('') + '</div></div>' : '') +
       '<div class="card"><h3>Leave the volunteer list</h3>' +
       '<p class="muted small">Stops Hub emails about shifts and paperwork. You pick who leaves on the next screen.</p>' +
       '<button class="btn" id="lv">Leave the volunteer list…</button></div>' + footer());
-    wireHeader();
+    wireHeader(); gLinkWire();
     var show = function (id) {
       Array.prototype.forEach.call(root.querySelectorAll('.confirm'), function (c) { c.hidden = true; });
       var c = document.getElementById(id + 'c'); c.hidden = false; c.scrollIntoView({ block: 'nearest' });
