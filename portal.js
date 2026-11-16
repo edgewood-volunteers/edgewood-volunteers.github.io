@@ -344,7 +344,7 @@
   }
   if (view === 'directory') { history.replaceState(null, '', location.pathname + '?view=directory'); return dirStart(); }   // section 26 on the Hub
   if (qs.get('code') && view === 'home') {   // a personal portal link: remember the code on this device, then clean the address bar
-    var c0 = normCode(qs.get('code')); if (c0.length >= 6) saveCode(c0, '');
+    var c0 = normCode(qs.get('code')); if (c0.length >= 6) { saveCode(c0, ''); state.viaLink = c0; }   // Nov 16: the Hub logs this first load as "Personal link opened"
     history.replaceState(null, '', location.pathname);
   }
   home();
@@ -356,6 +356,8 @@
     if (!ent) return signIn();
     spinner('Loading your page…');
     var rq = reqOf(ent);
+    if (state.viaLink && state.viaLink === ent.code) rq = { code: ent.code, via: 'link' };   // only the load that came from the link
+    state.viaLink = null;
     memoCall('portal', rq, JSON.stringify(rq), dashTtl()).then(function (d) {   // switching between people on this device is instant after the first look
       if (d.pick) return pickPerson(ent.email, d.pick);
       state.data = d; ent.first = d.me.first; ent.personId = d.me.personId; saveEntry(ent);
