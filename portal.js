@@ -1347,6 +1347,7 @@
       '<label class="small">Goes by (optional)<input id="vg" value="' + esc(a.goesBy) + '"></label><button class="btn primary" id="vnsave">Save the name</button>' +
       '<p class="small muted">Their folder and files are renamed too, and the old name is kept under Also appears as.</p></div>' +
       '<button class="btn" id="vcode">Email them their code</button>' +
+      '<button class="btn" id="vtext">Text them their code</button><div id="vtbox"></div>' +
       '<button class="btn" id="vreset">Give them a new code</button><label class="chk"><input type="checkbox" id="vremail" checked> Email the new code to them</label>' +
       '<p class="small muted">A new code stops their old code and links right away. Use it if someone else got hold of theirs.</p><p id="vmsg" class="small"></p></div>';
   }
@@ -1364,6 +1365,18 @@
         b.disabled = true; m().className = 'small'; m().textContent = 'Sending…';
         call('adminSendCode', adminReq({ pid: pid })).then(function (x) { b.disabled = false; m().className = 'small ok'; m().textContent = x.text; }).catch(function (e) { b.disabled = false; toolErr(m(), e); });
       });
+    });
+    // Nov 16: opens Messages on this phone with their link and code filled in (sent from the admin's own number). On a computer: copy the text.
+    on('#vtext', 'click', function () {
+      var b = this; b.disabled = true; m().className = 'small'; m().textContent = 'Getting their number…';
+      call('adminTextCode', adminReq({ pid: pid })).then(function (x) {
+        b.disabled = false; m().className = 'small ok'; m().textContent = 'Text ready for ' + x.to + ' (' + x.phone + '). Check it, then tap Send.';
+        var href = 'sms:' + x.phone + (/iPhone|iPad|iPod|Mac/.test(navigator.userAgent) ? '&' : '?') + 'body=' + encodeURIComponent(x.body);
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) { location.href = href; return; }
+        document.getElementById('vtbox').innerHTML = '<p class="small">On a phone this opens Messages. From here, copy it and text it to <b>' + esc(x.phone) + '</b>:</p>' +
+          '<textarea id="vtt" rows="5" readonly style="width:100%">' + esc(x.body) + '</textarea><button class="btn" id="vtcopy">Copy the text</button>';
+        on('#vtcopy', 'click', function () { var t = document.getElementById('vtt'); t.select(); try { navigator.clipboard.writeText(t.value); } catch (e) { document.execCommand('copy'); } this.textContent = 'Copied'; });
+      }).catch(function (e) { b.disabled = false; toolErr(m(), e); });
     });
     on('#vreset', 'click', function () {
       var b = this; twoTap(b, 'Tap again: their old code stops working', function () {
