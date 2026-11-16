@@ -351,6 +351,7 @@
 
   // ---------- portal home
   function home() {
+    state.adding = false;   // Nov 16: leaving the "+ Add" sign-in screen
     var ent = activeEntry();
     if (!ent) return signIn();
     spinner('Loading your page…');
@@ -375,8 +376,11 @@
       '<p class="muted">Enter the volunteer code from your Hub email (it looks like K7Q4-M9XD) for everything, or your email address to see your shifts, hours and paperwork. This device will remember it.</p>' +
       '<input id="code" autocomplete="off" placeholder="ABCD-1234 or you@example.com">' +
       '<button class="btn primary" id="go">Open my page</button><p class="err" id="msg"></p>' +
-      '<p class="small center" style="margin-top:10px"><a href="#" id="getcode">Don\'t have your code? Email it to me</a></p></div>' +
+      '<p class="small center" style="margin-top:10px"><a href="#" id="getcode">Don\'t have your code? Email it to me</a></p>' +
+      (state.adding && codes().length ? '<p class="small center" style="margin-top:6px"><a href="#" id="addx">Cancel: back to my page</a></p>' : '') + '</div>' +
       '<div class="card"><a class="btn" href="?view=coverage">See open spots</a></div>' + footer());
+    wireHeader();   // Nov 16 (Nick): the name pills here were dead after "+ Add", so there was no way back
+    on('#addx', 'click', function (e) { e.preventDefault(); home(); });
     var go = function () {
       var raw = document.getElementById('code').value.trim(), msg = document.getElementById('msg'), btn = document.getElementById('go');
       msg.textContent = '';
@@ -420,6 +424,7 @@
       '<div class="card"><h2>Already a volunteer?</h2><p class="muted">Use the email your Hub emails come to, or the code from your Hub email (it looks like K7Q4-M9XD).</p>' +
       '<button class="btn" id="back">Try a different email or code</button>' +
       '<button class="btn" id="getcode">Email me my code</button></div>' + footer());
+    wireHeader();
     on('#new', 'click', function () {
       try { sessionStorage.setItem('hubNewEmail', em); } catch (x) {}
       location.href = location.pathname + '?view=form';
@@ -439,6 +444,7 @@
       '<input id="cem" type="email" autocomplete="email" placeholder="you@example.com" value="' + esc(prefill || '') + '">' +
       '<button class="btn primary" id="csend">Email my code</button><p class="err" id="msg"></p><div id="cres"></div></div>' +
       '<div class="center small"><a href="#" id="back">Back</a></div>' + footer());
+    wireHeader();
     var go = function () {
       var em = document.getElementById('cem').value.trim().toLowerCase(), msg = document.getElementById('msg'), res = document.getElementById('cres'), btn = document.getElementById('csend');
       msg.textContent = ''; res.innerHTML = '';
@@ -466,6 +472,30 @@
     on('#back', 'click', function (e) { e.preventDefault(); back(); });
   }
 
+  /** Nov 16 (Nick): someone who opened their page with a code (the personal link we text or email) gets a card to link
+   *  their Google account, so next time "Sign in with Google" opens their page with no code. Uses the same portalGoogleLink
+   *  as the "Already a volunteer?" box. Hidden once this device signed in with Google, or after "Not now" (per person, per device). */
+  function gLinkCard(d) {
+    var ent = activeEntry() || {};
+    if (!window.HUB_GOOGLE_CLIENT_ID || d.limited || !ent.code || ent.g) return '';
+    try { if (localStorage.getItem(PFX + 'gNo_' + ent.id)) return ''; } catch (e) {}
+    return '<div class="card" id="glink"><h2>Sign in faster with Google</h2>' +
+      '<p class="muted">Link your Google account once. Next time, just tap <b>Sign in with Google</b>: no code needed.</p>' +
+      '<div id="gbtnL" class="gbtn"></div><p class="err" id="gmsg"></p>' +
+      '<div class="center small" style="margin-top:8px"><a href="#" id="gNo">Not now</a></div></div>';
+  }
+  function gLinkWire() {
+    var ent = activeEntry() || {}, card = document.getElementById('glink'); if (!card) return;
+    on('#gNo', 'click', function (e) { e.preventDefault(); try { localStorage.setItem(PFX + 'gNo_' + ent.id, '1'); } catch (x) {} card.parentNode.removeChild(card); });
+    gsi('gbtnL', function (cred) {
+      var m = document.getElementById('gmsg'); if (m) m.textContent = '';
+      call('portalGoogleLink', { credential: cred, code: ent.code }).then(function (p) {
+        saveCode(p.code, p.first, p.personId, true);
+        card.innerHTML = '<div style="padding:12px 14px;border-radius:12px;background:#DCFCE7;color:#14532D;line-height:1.45"><b>Linked!</b> Next time, tap <b>Sign in with Google</b> to open your page.</div>';
+      }).catch(function (e) { if (m) m.textContent = /confirm that sign-in/i.test(e.message) ? 'Your Google sign-in timed out. Try the button again.' : e.message; });
+    });
+  }
+
   /** Google sign-in button (the same Google client as admin sign-in). */
   function gsi(elId, onCred) {
     var cid = window.HUB_GOOGLE_CLIENT_ID, el = document.getElementById(elId); if (!cid || !el) return;
@@ -491,6 +521,7 @@
       '<input id="lcode" autocomplete="off" placeholder="ABCD-1234"><button class="btn" id="link">Link my Google account</button><p class="err" id="msg"></p>' +
       '<p class="small center" style="margin-top:10px"><a href="#" id="getcode">Don\'t have your code? Email it to me</a></p></div>' +
       '<div class="center small"><a href="#" id="back">Back</a></div>' + footer());
+    wireHeader();
     var go = function () {
       var c = normCode(document.getElementById('lcode').value), msg = document.getElementById('msg'); msg.textContent = '';
       if (c.length < 6) { msg.textContent = 'Enter the 8-letter code from your Hub email.'; return; }
@@ -506,6 +537,7 @@
   function pickPerson(email, list) {
     h(header('', false) + '<div class="card"><h2>Who are you?</h2><p class="muted">More than one volunteer uses this email.</p>' +
       list.map(function (p) { return '<button class="btn" data-pid="' + esc(p.personId) + '">' + esc(p.first) + '</button>'; }).join('') + '<p class="err" id="msg"></p></div>' + footer());
+    wireHeader();
     on('[data-pid]', 'click', function () {
       var pid = this.getAttribute('data-pid'); if (this.disabled) return; var undo = busy(this);
       memoCall('portal', { email: email, personId: pid }, JSON.stringify({ email: email, personId: pid }), dashTtl()).then(function (d) {
@@ -517,14 +549,14 @@
   function header(first, isAdmin) {
     var list = codes(), act = (activeEntry() || {}).id;
     var pills = list.map(function (x) {
-      return '<button class="pill' + (x.id === act && !state.admin ? ' on' : '') + '" data-code="' + esc(x.id) + '">' + esc(x.first || (x.code ? fmtCode(x.code) : x.email)) + '</button>';
+      return '<button class="pill' + (x.id === act && !state.admin && !state.adding ? ' on' : '') + '" data-code="' + esc(x.id) + '">' + esc(x.first || (x.code ? fmtCode(x.code) : x.email)) + '</button>';
     }).join('');
     // Nov 11: others on the same email (the Hub sends them only to a code sign-in): one tap adds them to this device
     var d0 = state.data || {}, have = {};
     list.forEach(function (x) { if (x.personId) have[x.personId] = 1; if (x.code) have[normCode(x.code)] = 1; });
     state.houseAdd = (!state.admin && !d0.limited && d0.house || []).filter(function (p) { return p && p.code && !have[p.personId] && !have[normCode(p.code)]; });
     pills += state.houseAdd.map(function (p, i) { return '<button class="pill add" data-house="' + i + '" title="Shares your email. Add to this device">+ ' + esc(p.first) + '</button>'; }).join('');
-    pills += (list.length ? '<button class="pill add" id="addp" title="Add another person on this device">+ Add</button>' : '');
+    pills += (list.length && !state.adding ? '<button class="pill add" id="addp" title="Add another person on this device">+ Add</button>' : '');
     var ini = String(first || '').trim().charAt(0).toUpperCase();
     return '<header><div class="hx-top"><a class="eyebrow" href="' + location.pathname + '">Edgewood Volunteer Hub</a>' + (ini ? '<div class="avatar" aria-hidden="true">' + esc(ini) + '</div>' : '') + '</div>' +
       '<div class="hello">' + (first ? 'Hi, ' + esc(first) : 'Volunteer pages') + '</div>' +
@@ -539,7 +571,7 @@
   }
   function wireHeader() {
     on('.pill[data-code]', 'click', function () { state.admin = false; store(ACTIVE, this.getAttribute('data-code')); home(); });
-    on('#addp', 'click', function () { state.admin = false; signIn(); });
+    on('#addp', 'click', function () { state.admin = false; state.adding = true; signIn(); });
     on('.pill[data-house]', 'click', function () { var p = (state.houseAdd || [])[+this.getAttribute('data-house')]; if (!p) return; saveCode(p.code, p.first, p.personId); state.admin = false; home(); });
     on('#adm', 'click', function () { if (state.admin) { state.admin = false; renderHome(state.data, false); } else adminStart(); });
     on('#dirp', 'click', function () { dirStart(); });
@@ -680,7 +712,7 @@
       (pH ? ' <span class="muted">(' + pl(pq.length) + ')</span>' : '') + chk(myRv) + '</span></div>';
     out += '</div>';
 
-    if (!asAdmin) out += a2hsCard();
+    if (!asAdmin) out += a2hsCard() + gLinkCard(d);
     // Quick links
     out += '<div class="card links">' +
       '<button class="li" id="hist"><span class="l">' + ICON.clock + 'Hours history</span>' + ICON.chev + '</button>' +
@@ -695,7 +727,7 @@
     on('#cal', 'click', function () { calendar(d, asAdmin); });
     on('#hist', 'click', function () { history_(d, asAdmin); });
     on('#manage', 'click', function (e) { e.preventDefault(); manageDevice(d); });
-    if (!asAdmin) a2hsWire();
+    if (!asAdmin) { a2hsWire(); gLinkWire(); }
     on('#usecode', 'click', function () { signIn(); });
   }
 
@@ -865,6 +897,7 @@
     h(header('', false) + '<div class="card"><h2>Leave the volunteer list</h2><p class="muted">Enter the email address Hub emails come to.</p>' +
       '<input id="em" type="email" placeholder="you@example.com"><button class="btn primary" id="go">Continue</button>' +
       (c ? '<p class="small">Or <a href="#" id="usecode">continue as the volunteer saved on this device</a>.</p>' : '') + '<p class="err" id="msg"></p></div>' + footer());
+    wireHeader();
     on('#go', 'click', function () { var v = document.getElementById('em').value.trim(); if (!/@/.test(v)) { document.getElementById('msg').textContent = 'Enter an email address.'; return; } leaveFlow({ email: v }); });
     on('#usecode', 'click', function (e) { e.preventDefault(); leaveFlow({ code: c }); });
   }
@@ -892,6 +925,7 @@
     h(header('', false) + '<div class="card"><h2>Admin sign-in</h2><p class="muted">Sign in with the Google account that is on the Portal admins list.</p>' +
       (note ? '<p class="err">' + esc(note) + '</p>' : '') + (cid ? '<div id="gbtn"></div>' : '<p class="err">Admin sign-in is not set up yet.</p>') +
       '<p class="err" id="msg"></p><button class="btn" id="cancelAdm">Cancel</button></div>' + footer());
+    wireHeader();
     on('#cancelAdm', 'click', function () { adminLeaveUrl(); state.admin = false; state.data ? renderHome(state.data, false) : home(); });
     if (!cid) return;
     gsi('gbtn', function (cred) {
@@ -1943,6 +1977,7 @@
     h(header('', false) + '<div class="card"><h2>Volunteer directory</h2><p class="muted">For chairs and admins. Sign in with the Google account on the Directory access list.</p>' +
       (note ? '<p class="err">' + esc(note) + '</p>' : '') + (cid ? '<div id="gbtn"></div>' : '<p class="err">Sign-in is not set up yet.</p>') +
       '<p class="err" id="msg"></p><button class="btn" id="cancelDir">Cancel</button></div>' + footer());
+    wireHeader();
     on('#cancelDir', 'click', function () { history.replaceState(null, '', location.pathname); state.data ? renderHome(state.data, false) : home(); });
     if (!cid) return;
     gsi('gbtn', function (cred) {
