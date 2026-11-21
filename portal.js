@@ -337,7 +337,7 @@
     if (adminSess()) {
       state.admin = true;
       if (p0) return adminView(p0);
-      var t0 = qs.get('tool'), T0 = { home: adminToolsHome, review: toolReview, family: toolFamily, cancel: toolCancel, sheets: toolSheets, logs: toolLogs, noshows: toolNoShows, walkin: toolWalkIn, health: toolHealth };
+      var t0 = qs.get('tool'), T0 = { home: adminToolsHome, review: toolReview, family: toolFamily, cancel: toolCancel, sheets: toolSheets, logs: toolLogs, noshows: toolNoShows, walkin: toolWalkIn, health: toolHealth, perms: toolPerms };
       if (t0 && T0[t0]) return T0[t0]();
       if (qs.get('ms')) { state.canManage = adminLevel() >= 3; return adminManage(qs.get('ev') || '', d0); }
       if (r0 && d0) return adminRoster(r0, d0);
@@ -1077,6 +1077,7 @@
       add(2, 'tl_walkin', 'Add a worker by hand', 0, 'Someone working a stand who isn\'t signed up');
       add(3, 'tl_cancel', 'Cancel a stand or game', 0, 'Weather, IU or Levy changes; emails who is signed up');
       add(4, 'tl_health', 'Hub health', r.health, r.health ? 'Things to look at' : 'Safety breakers, email, daily checks');
+      if (r.superAdmin) b.push('<button class="hit" id="tl_perms"><b>Admins and permissions</b><div class="small muted">Who is an admin and at what level (super admins only)</div></button>');
       if (!b.length) { el.innerHTML = '<p class="muted">Your admin level doesn\'t include any Hub tools.</p>'; return; }
       el.innerHTML = b.join('');
       on('#tl_review', 'click', function () { toolReview(); });
@@ -1087,6 +1088,7 @@
       on('#tl_walkin', 'click', toolWalkIn);
       on('#tl_cancel', 'click', toolCancel);
       on('#tl_health', 'click', toolHealth);
+      on('#tl_perms', 'click', toolPerms);
     }).catch(function (e) {
       if (/expired|sign in with google/i.test(e.message)) return adminFail(e);
       el.innerHTML = '<p class="muted">Hub tools aren\'t available on this Hub yet.</p>';   // an older Hub without section 34
@@ -1344,6 +1346,38 @@
       h(o + footer()); toolWire();
     }).catch(adminFail);
   }
+  // --- Nov 21: Admins and permissions (super admins only). Lists › Portal admins + Admin level; Super admins are read only here.
+  function toolPerms(flash) {
+    adminUrl({ tool: 'perms' }); spinner('Loading admins…');
+    call('adminPerms', adminReq({})).then(function (r) {
+      PERM_LEVELS = r.levels || PERM_LEVELS;
+      var o = toolHead('Admins and permissions', 'Changes take effect on the person\'s next tap. Super admins are changed only in the spreadsheet (Lists › Super admins).');
+      o += '<div class="card"><h2>Super admins</h2>' + (r.supers.length ? r.supers.map(function (x) { return '<div class="hrow"><span>' + esc(x.who || x.key) + '</span><b class="small">' + esc(x.who ? x.key : '') + '</b></div>'; }).join('') : '<p class="muted">None.</p>') + '</div>';
+      o += '<div class="card"><h2>Portal admins (' + r.admins.length + ')</h2>' + r.admins.map(function (x, i) {
+        return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08)"><b>' + esc(x.who || x.key) + '</b>' + (x.inactive ? ' <span class="err small">inactive</span>' : '') +
+          '<div class="small muted">' + esc(x.who ? x.key : 'not matched to anyone on People') + (x.raw && x.raw !== x.level ? ' · sheet says "' + esc(x.raw) + '"' : '') + '</div>' +
+          '<div class="row" style="gap:8px"><select class="pmlvl" data-i="' + i + '">' + permOpts(x.level) + '</select><button class="btn sm pmsave" data-i="' + i + '">Save</button></div></div>';
+      }).join('') + '</div>';
+      o += '<div class="card"><h2>Add an admin</h2><p class="small muted">Easiest: find the volunteer and set their level on their admin page. Or type the Google email they sign in with, or a Person ID.</p>' +
+        '<input id="pmkey" placeholder="email or Person ID"><select id="pmnew">' + permOpts('Viewer').replace('<option>None</option>', '') + '</select><button class="btn primary" id="pmadd">Add admin</button></div>';
+      h(o + footer()); toolWire(); if (typeof flash === 'string') toolMsg(flash);
+      var go = function (b, body, label) {
+        twoTap(b, label, function () {
+          b.disabled = true; toolMsg('Saving…', 'small');
+          call('adminPermsSet', adminReq(body)).then(function (x) { toolPerms(x.text); }).catch(function (e) { b.disabled = false; toolMsg(e.message, 'err'); });
+        });
+      };
+      on('.pmsave', 'click', function () {
+        var i = Number(this.getAttribute('data-i')), x = r.admins[i], v = document.querySelector('.pmlvl[data-i="' + i + '"]').value;
+        go(this, v === 'None' ? { key: x.key, remove: true } : { key: x.key, level: v }, v === 'None' ? 'Tap again: remove' : 'Tap again: ' + v);
+      });
+      on('#pmadd', 'click', function () {
+        var k = document.getElementById('pmkey').value.trim(), v = document.getElementById('pmnew').value;
+        if (!k) { toolMsg('Type an email or Person ID.', 'err'); return; }
+        go(this, { key: k, level: v }, 'Tap again: add ' + k + ' as ' + v);
+      });
+    }).catch(adminFail);
+  }
   // --- one volunteer: fix name, email their code, new code (on their admin page)
   function toolPersonCard(a) {
     if (!a || !a.pid || !TOOLS || (TOOLS.level || 4) < 2) return '';
@@ -1359,7 +1393,22 @@
       // Nov 21: unlink Google sign-in. Shown only when the Hub reports a linked Google email (older Hubs send none, so it stays hidden).
       '<div id="vgbox">' + (a.google || []).map(function (g) { return '<button class="btn vgun" data-g="' + esc(g) + '">Unlink Google sign-in (' + esc(g) + ')</button>'; }).join('') +
       ((a.google || []).length ? '<p class="small muted">Use it when they can\'t get in by typing their email ("This email signs in with Google"). Their code and Hub emails don\'t change.</p>' : '') + '</div>' +
-      '<p id="vmsg" class="small"></p></div>';
+      permCard(a.perm) + '<p id="vmsg" class="small"></p></div>';
+  }
+  // Nov 21: super admin (Lists › Super admins, sheet only) manages admin access. a.perm comes only to super admins.
+  function permOpts(cur) { return ['None'].concat(PERM_LEVELS).map(function (x) { return '<option' + (x === cur ? ' selected' : '') + '>' + x + '</option>'; }).join(''); }
+  var PERM_LEVELS = ['Viewer', 'Coordinator', 'Manager', 'Full'];
+  function permCard(p) {
+    if (!p) return '';
+    if (p.levels) PERM_LEVELS = p.levels;
+    var byPid = null, others = [];
+    (p.entries || []).forEach(function (e) { if (e.key === String(p.pid).toLowerCase()) byPid = e; else others.push(e); });
+    return '<div style="border-top:1px solid rgba(255,255,255,.12);margin-top:12px;padding-top:12px"><h2 style="margin-top:0">Admin access <span class="small muted">(super admin)</span></h2>' +
+      (p.superAdmin ? '<p class="small"><b>Super admin.</b> That is set on Lists › Super admins in the spreadsheet only.</p>' : '') +
+      '<label class="small">Admin level (by Person ID ' + esc(p.pid) + ', follows their emails)<select id="vplvl">' + permOpts(byPid ? byPid.level : 'None') + '</select></label>' +
+      '<button class="btn" id="vpsave">Save admin level</button>' +
+      others.map(function (e) { return '<div class="small" style="margin:6px 0">Also listed by email <b>' + esc(e.key) + '</b> as ' + esc(e.level) + ' <button class="btn sm vprm" data-k="' + esc(e.key) + '">Remove</button></div>'; }).join('') +
+      '<p class="small muted">Viewer: look up, rosters, directory, texts. Coordinator: + act for volunteers, time sheets, roster changes, codes. Manager: + Manage stands, paperwork, approvals, cancel. Full: everything. They sign in with Google using an email on their People row.</p></div>';
   }
   function toolPersonWire(a) {
     if (!document.getElementById('vname')) return;
@@ -1392,6 +1441,21 @@
       var b = this; twoTap(b, 'Tap again: their old code stops working', function () {
         b.disabled = true; m().className = 'small'; m().textContent = 'Working…';
         call('adminResetCode', adminReq({ pid: pid, email: document.getElementById('vremail').checked })).then(function (x) { b.disabled = false; m().className = 'small ok'; m().textContent = x.text; }).catch(function (e) { b.disabled = false; toolErr(m(), e); });
+      });
+    });
+    on('#vpsave', 'click', function () {
+      var b = this, v = document.getElementById('vplvl').value;
+      twoTap(b, v === 'None' ? 'Tap again: remove their admin access' : 'Tap again: make them ' + v, function () {
+        b.disabled = true; m().className = 'small'; m().textContent = 'Saving…';
+        call('adminPermsSet', adminReq(v === 'None' ? { key: pid, remove: true } : { key: pid, level: v })).then(function (x) { b.disabled = false; m().className = 'small ok'; m().textContent = x.text; })
+          .catch(function (e) { b.disabled = false; toolErr(m(), e); });
+      });
+    });
+    on('.vprm', 'click', function () {
+      var b = this, k = b.getAttribute('data-k');
+      twoTap(b, 'Tap again', function () {
+        b.disabled = true; call('adminPermsSet', adminReq({ key: k, remove: true })).then(function (x) { b.parentNode.style.display = 'none'; m().className = 'small ok'; m().textContent = x.text; })
+          .catch(function (e) { b.disabled = false; toolErr(m(), e); });
       });
     });
     Array.prototype.forEach.call(document.querySelectorAll('.vgun'), function (btn) {
