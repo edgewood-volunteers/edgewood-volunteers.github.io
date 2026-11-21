@@ -317,7 +317,13 @@
   }
   function spinner(msg) { h('<div class="card center"><div class="spin"></div><p class="muted">' + esc(msg || 'Loading…') + '</p></div>'); }
   function on(sel, ev, fn) { Array.prototype.forEach.call(root.querySelectorAll(sel), function (el) { el.addEventListener(ev, fn); }); }
-  function telLink(p, kind) { var d = String(p || '').replace(/[^\d+]/g, ''); return d ? (kind === 'sms' ? 'sms:' : 'tel:') + d : ''; }
+  function telLink(p, kind, body) {   // body (texts): prefilled message. Nov 20: one-to-one texts open "Hi <their name>, this is <my name>"
+    var d = String(p || '').replace(/[^\d+]/g, ''); if (!d) return '';
+    if (kind !== 'sms') return 'tel:' + d;
+    return 'sms:' + d + (body ? (/iPhone|iPad|iPod|Mac/.test(navigator.userAgent) ? '&' : '?') + 'body=' + encodeURIComponent(body) : '');
+  }
+  function hiText(to, me, extra) { return 'Hi ' + (to ? to + ', ' : '') + 'this is ' + (me || 'a volunteer') + (extra || '') + '. '; }
+  function meName(d) { return (d && (d.name || d.first)) || ''; }
   function dayKey(t) { var d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
   function sameDay(t) { return dayKey(t) === dayKey(Date.now()); }
 
@@ -601,7 +607,7 @@
     (d.standToday || []).forEach(function (s) {
       out += '<div class="card gameday wide"><div class="tag">' + (s.late ? esc(s.date || '') + ' · stand sheet not submitted yet' : 'Today · you\'re the stand lead') + '</div><div class="big">' + esc(s.stand) + (s.event ? ' · ' + esc(s.event) : '') + '</div>' +
         (s.link ? '<a class="btn primary" href="' + esc(toSite(s.link)) + '">Log your stand\'s hours</a>' : s.act ? '<a class="btn primary" href="' + esc(toSite(s.act)) + '">Open this stand\'s time sheet (as admin)</a>' : '<p class="small muted">' + (asAdmin ? 'Admin view hides the stand link.' : 'Your stand link is in your Hub email, or enter your code above to open it here.') + '</p>') +
-        (d.techPhone ? '<a class="btn" href="' + telLink(d.techPhone, 'sms') + '">Page not working? Text tech support (Nick)</a>' : '') + '</div>';
+        (d.techPhone ? '<a class="btn" href="' + telLink(d.techPhone, 'sms', hiText('Nick', meName(d), ' (volunteer page problem)')) + '">Page not working? Text tech support (Nick)</a>' : '') + '</div>';
     });
 
     // Paperwork (status first: cleared / being checked / needs attention)
@@ -653,7 +659,7 @@
       if (next.youLead) out += '<div class="lead"><span><b>You\'re the stand lead.</b></span></div>';
       else if (next.lead) {
         out += '<div class="lead"><span><span class="muted small">Stand lead</span><br><b>' + esc(next.lead) + '</b></span>';
-        if (next.leadPhone) out += '<span class="acts"><a class="light" href="' + telLink(next.leadPhone) + '">Call</a><a href="' + telLink(next.leadPhone, 'sms') + '">Text</a></span>';
+        if (next.leadPhone) out += '<span class="acts"><a class="light" href="' + telLink(next.leadPhone) + '">Call</a><a href="' + telLink(next.leadPhone, 'sms', hiText(next.lead, meName(d), ', on your ' + (next.stand || 'stand') + ' crew for ' + (next.date || 'the game'))) + '">Text</a></span>';
         else if (next.phoneLater) out += '<span class="muted small" style="text-align:right">Call/text shows<br>' + esc(sh.showH || 48) + ' h before</span>';
         out += '</div>';
       }
@@ -831,7 +837,7 @@
       if (i.up) {
         o += '<div>' + esc(x.start || '') + (x.end ? '–' + esc(x.end) : '') + '</div>';
         if (x.youLead) o += '<div class="small">You\'re the stand lead.</div>';
-        else if (x.lead) o += '<div class="small">Stand lead: ' + esc(x.lead) + (x.leadPhone ? ' · <a href="' + telLink(x.leadPhone) + '">Call</a> · <a href="' + telLink(x.leadPhone, 'sms') + '">Text</a>' : x.phoneLater ? ' <span class="muted">(call/text show closer to the shift)</span>' : '') + '</div>';
+        else if (x.lead) o += '<div class="small">Stand lead: ' + esc(x.lead) + (x.leadPhone ? ' · <a href="' + telLink(x.leadPhone) + '">Call</a> · <a href="' + telLink(x.leadPhone, 'sms', hiText(x.lead, meName(d), ', on your ' + (x.stand || 'stand') + ' crew for ' + (x.date || 'the game'))) + '">Text</a>' : x.phoneLater ? ' <span class="muted">(call/text show closer to the shift)</span>' : '') + '</div>';
       } else {
         o += '<div>' + esc(x.start || '') + (x.end ? '–' + esc(x.end) : '') + ' · ' + esc(x.hours) + ' hours' + (x.student ? ' · credited to ' + esc(x.student) : '') + '</div><div class="small muted">' + esc(x.status || '') + '</div>';
       }
@@ -1946,7 +1952,7 @@
     return out;
   }
   function reachIntro(r, stand) {
-    var me = String((adminSess() || {}).name || '').split(/\s+/)[0];
+    var me = String((adminSess() || {}).name || '').trim();   // Nov 20: full name, so replies from unsaved numbers say who
     return 'Hi, this is ' + (me || 'the IU concessions team') + ' with the Edgewood volunteers, about ' + r.name + ' on ' + r.day + (stand ? ' (stand ' + stand + ')' : '') + '. ';
   }
   function reachCard(rc, r, scope) {
@@ -2067,8 +2073,9 @@
     });
     document.getElementById('dcount').textContent = list.length + ' of ' + r.people.length + ' active volunteers';
     // Call / Text buttons like the call tree: Call solid navy, Text outlined, greyed out when there's no number
-    var acts = function (p, email) {
-      var t = telLink(p), m = telLink(p, 'sms');
+    var dme = (dirSess() || {}).name || '';
+    var acts = function (p, email, body) {
+      var t = telLink(p), m = telLink(p, 'sms', body);
       return '<div class="dacts"><a href="' + (t || '#') + '"' + (t ? '' : ' class="off"') + '>Call</a>' +
         '<a href="' + (m || '#') + '" class="light' + (m ? '' : ' off') + '">Text</a>' +
         (email ? '<a href="mailto:' + esc(email) + '" class="light">Email</a>' : '') + '</div>';
@@ -2077,7 +2084,8 @@
       var contact = x.minor
         ? '<div class="small"><b>Parent:</b> ' + (x.parent ? esc(x.parent) : '<span class="muted">not on file</span>') + (x.parentPhone ? ' · ' + esc(x.parentPhone) : ' · <span class="muted">no phone</span>') + '</div>'
         : '<div class="small">' + (x.phone ? esc(x.phone) : '<span class="muted">No phone</span>') + (x.email ? ' · ' + esc(x.email) : '') + '</div>';
-      var buttons = x.minor ? acts(x.parentPhone, '') : acts(x.phone, x.email);
+      var buttons = x.minor ? acts(x.parentPhone, '', hiText(x.parent, dme, ' with the Edgewood volunteers, about ' + x.first + ' ' + x.last))
+        : acts(x.phone, x.email, hiText(x.first + ' ' + x.last, dme, ' with the Edgewood volunteers'));
       var pw = x.missing.length ? '<div class="small" style="color:#b45309">⚠ Missing: ' + esc(x.missing.join(', ')) + '</div>' : '<div class="small" style="color:#15803d">✓ Paperwork ready</div>';
       var permit = x.permit.length ? '<div class="small muted">Permit spots: missing ' + esc(x.permit.join(', ')) + '</div>' : '';
       var nx = x.next ? '<div class="small"><b>Next:</b> ' + esc(x.next.date) + ' · ' + esc(x.next.event) + (x.next.task ? ' · ' + esc(x.next.task) : '') + '</div>' : '<div class="small muted">No upcoming shift</div>';
