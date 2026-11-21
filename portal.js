@@ -1355,7 +1355,11 @@
       '<button class="btn" id="vcode">Email them their code</button>' +
       '<button class="btn" id="vtext">Text them their code</button><div id="vtbox"></div>' +
       '<button class="btn" id="vreset">Give them a new code</button><label class="chk"><input type="checkbox" id="vremail" checked> Email the new code to them</label>' +
-      '<p class="small muted">A new code stops their old code and links right away. Use it if someone else got hold of theirs.</p><p id="vmsg" class="small"></p></div>';
+      '<p class="small muted">A new code stops their old code and links right away. Use it if someone else got hold of theirs.</p>' +
+      // Nov 21: unlink Google sign-in. Shown only when the Hub reports a linked Google email (older Hubs send none, so it stays hidden).
+      '<div id="vgbox">' + (a.google || []).map(function (g) { return '<button class="btn vgun" data-g="' + esc(g) + '">Unlink Google sign-in (' + esc(g) + ')</button>'; }).join('') +
+      ((a.google || []).length ? '<p class="small muted">Use it when they can\'t get in by typing their email ("This email signs in with Google"). Their code and Hub emails don\'t change.</p>' : '') + '</div>' +
+      '<p id="vmsg" class="small"></p></div>';
   }
   function toolPersonWire(a) {
     if (!document.getElementById('vname')) return;
@@ -1388,6 +1392,15 @@
       var b = this; twoTap(b, 'Tap again: their old code stops working', function () {
         b.disabled = true; m().className = 'small'; m().textContent = 'Working…';
         call('adminResetCode', adminReq({ pid: pid, email: document.getElementById('vremail').checked })).then(function (x) { b.disabled = false; m().className = 'small ok'; m().textContent = x.text; }).catch(function (e) { b.disabled = false; toolErr(m(), e); });
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.vgun'), function (btn) {
+      btn.addEventListener('click', function () {
+        var b = this, g = b.getAttribute('data-g'); twoTap(b, 'Tap again to unlink ' + g, function () {
+          b.disabled = true; m().className = 'small'; m().textContent = 'Unlinking…';
+          call('adminGoogleUnlink', adminReq({ pid: pid, gEmail: g })).then(function (x) { b.style.display = 'none'; m().className = 'small ok'; m().textContent = x.text; })
+            .catch(function (e) { b.disabled = false; toolErr(m(), e); });
+        });
       });
     });
   }
