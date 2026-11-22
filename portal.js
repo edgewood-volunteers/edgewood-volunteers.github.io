@@ -347,7 +347,7 @@
       if (r0 && d0) return adminRoster(r0, d0);
       if (s0 && d0) return adminSuRoster(s0, d0);
       if (qs.get('day')) return adminDay(qs.get('day') === 'today' ? todayIso() : qs.get('day'));
-      if (qs.get('find')) return adminFind();
+      if (qs.get('find')) return adminFind(qs.get('q') || '');   // Nov 21: &q= searches right away (warp links from Nick's launcher)
       return adminSearch();
     }
     return adminStart();
@@ -1055,6 +1055,7 @@
       msg.textContent = ''; res.innerHTML = '<div class="spin"></div>';
       call('adminSearch', adminReq({ q: q })).then(function (r) {
         if (!r.hits.length) { res.innerHTML = '<p class="muted">No matches.</p>'; return; }
+        if (q0 && q === q0 && r.hits.length === 1 && !r.more) return adminView(r.hits[0].personId);   // a warp search with one match goes straight to them
         res.innerHTML = r.hits.map(function (x) {
           return '<button class="hit" data-id="' + esc(x.personId) + '"><b>' + esc(x.name) + '</b>' + (x.minor ? ' <span class="small muted">(minor)</span>' : '') +
             '<div class="small muted">' + esc(x.email) + (x.phone ? ' · ' + esc(x.phone) : '') + ' · ' + esc(x.status) + '</div></button>';
