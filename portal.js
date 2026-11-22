@@ -626,7 +626,10 @@
       try { navigator.clipboard.writeText(SHARE_URL).then(done, function () { prompt('Copy this link:', SHARE_URL); }); } catch (e) { prompt('Copy this link:', SHARE_URL); }
     };
   }
-  document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('.sharehub'); if (a) { e.preventDefault(); shareHub(); } });
+  document.addEventListener('click', function (e) {   // composedPath: the pages draw inside a shadow root, so e.target is the host here
+    var path = e.composedPath ? e.composedPath() : [e.target];
+    for (var i = 0; i < path.length; i++) if (path[i].classList && path[i].classList.contains('sharehub')) { e.preventDefault(); shareHub(); return; }
+  });
   function wireFooter() {
   }
 
