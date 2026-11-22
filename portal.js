@@ -1074,7 +1074,15 @@
       '<div class="card wide"><h2>SignUp.com games</h2><p class="small muted">Who is working each stand, with group-text buttons. Changes still happen on SignUp.com.</p><div id="sugames"><div class="spin"></div></div></div></div>' + footer());
     wireAdminBar();
     on('#gofind', 'click', function () { adminFind(); });
-    var gf = document.getElementById('gofind'); if (gf && !document.getElementById('goday')) { gf.insertAdjacentHTML('afterend', '<button class="btn primary" id="goday">Game day: everything happening today</button>'); on('#goday', 'click', function () { adminDay(todayIso()); }); }
+    // Nov 21 (Nick): Game day gets its own card at the top of admin home (not inside Find a volunteer)
+    var gf = document.getElementById('gofind'), gc = gf && gf.closest('.card');
+    if (gc && !document.getElementById('goday')) {
+      var td = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
+      gc.insertAdjacentHTML('beforebegin', '<div class="card gameday" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">' +
+        '<div><h2 style="margin:0">Game day · ' + esc(td) + '</h2><div class="small muted">Every game today: stands, leads to call or text, time sheets.</div></div>' +
+        '<button class="btn primary" id="goday" style="min-width:170px">Open game day</button></div>');
+      on('#goday', 'click', function () { adminDay(todayIso()); });
+    }
     on('#homerefresh', 'click', function (e) { e.preventDefault(); homeC(true); adminSearch(); });
     adminHubList();
     adminSuList();
