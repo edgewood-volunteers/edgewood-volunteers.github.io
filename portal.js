@@ -34,6 +34,7 @@
       P + '.avatar{flex:none;width:34px;height:34px;border-radius:50%;background:#F5B700;color:#0B2545;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}',
       P + '.pills{gap:8px}',
       P + '.pill{min-height:34px;padding:6px 15px;border:0;background:rgba(255,255,255,.14);color:#fff;font:600 14px Inter,sans-serif}',
+      P + 'a.pill{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;vertical-align:middle;line-height:1.2;margin:0}',   // Nov 21: My dashboard (a link) lined up with the button pills
       P + '.pill.on{background:#fff;color:#0B2545;font-weight:700}',
       P + '.pill.add{background:transparent;border:1px dashed rgba(255,255,255,.55)}',
       P + '.pill.admin{background:transparent;border:1px solid #F5B700;color:#F5B700}' + P + '.pill.admin.on{background:#F5B700;color:#0B2545}',
