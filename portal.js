@@ -8,6 +8,8 @@
   var LIAISON = 'edgewood.hs.volunteers+liaison@gmail.com', TECH = 'edgewood.hs.volunteers+help@gmail.com';
   var root = document.getElementById('hub');
   // Nov 14: "Refresh now" on remembered screens: forget everything and reload (the address bar already says which screen)
+  // Share the Hub (footer): registered up here because the router below returns before the rest of this file's statements run.
+  document.addEventListener('click', function (e) { var a = e.target && e.target.closest && e.target.closest('.sharehub'); if (a) { e.preventDefault(); shareHub(); } });
   if (root) root.addEventListener('click', function (e) { var t = e.target; if (t && t.classList && t.classList.contains('memore')) { e.preventDefault(); try { window.__hubHomeC = {}; } catch (x) {} location.reload(); } });
   var PFX = ENV === 'LIVE' ? '' : 'sbx_';   // live and test sites share this address, so they keep separate saved codes and admin sign-ins
   var KEY = PFX + 'hubCodes', ACTIVE = PFX + 'hubActive';
@@ -598,8 +600,8 @@
   }
   // Nov 21 (Nick): "Share the Hub" in every footer: a QR code someone can scan off your screen, plus share / copy the link.
   // Always the public Hub address (never a personal link or the sandbox), so sharing never hands out anyone's access.
-  var SHARE_URL = 'https://edgewood-volunteers.github.io/';
   function shareHub() {
+    var SHARE_URL = 'https://edgewood-volunteers.github.io/';
     var old = document.getElementById('shareov'); if (old) old.remove();
     var ov = document.createElement('div'); ov.id = 'shareov'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Share the Hub');
     ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,10,18,.92);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px';
@@ -626,10 +628,7 @@
       try { navigator.clipboard.writeText(SHARE_URL).then(done, function () { prompt('Copy this link:', SHARE_URL); }); } catch (e) { prompt('Copy this link:', SHARE_URL); }
     };
   }
-  document.addEventListener('click', function (e) {   // composedPath: the pages draw inside a shadow root, so e.target is the host here
-    var path = e.composedPath ? e.composedPath() : [e.target];
-    for (var i = 0; i < path.length; i++) if (path[i].classList && path[i].classList.contains('sharehub')) { e.preventDefault(); shareHub(); return; }
-  });
+
   function wireFooter() {
   }
 
