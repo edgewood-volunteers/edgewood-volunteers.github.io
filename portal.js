@@ -1404,7 +1404,13 @@
         '<div class="hrow"><span>Held big changes</span><b>' + r.held + '</b></div>' +
         '<div class="hrow"><span>Emails left today (Google)</span><b>' + (r.quota == null ? '?' : r.quota) + '</b></div></div>' +
         '<div class="card"><h2>Health check</h2>' + (r.issues.length ? '<ol style="padding-left:20px">' + r.issues.map(function (x) { return '<li style="margin-bottom:6px">' + esc(x) + '</li>'; }).join('') + '</ol>' : '<p class="ok">All clear.</p>') + '</div>';
+      o += '<div class="card"><h2>Phone alerts</h2><p class="small muted">The Hub pushes an alert to your phone (ntfy app) when someone fails to sign in 3 times, a time sheet is overdue, or a breaker trips. Alerts never include names or contact info.</p>' +
+        '<button class="btn" id="alerttest">Send a test alert</button><p id="alertmsg" class="small"></p></div>';
       h(o + footer()); toolWire();
+      on('#alerttest', 'click', function () {
+        var b = this, m = document.getElementById('alertmsg'); b.disabled = true; m.className = 'small'; m.textContent = 'Sending…';
+        call('adminAlertTest', adminReq({})).then(function (x) { b.disabled = false; m.className = 'small ok'; m.textContent = x.text; }).catch(function (e) { b.disabled = false; m.className = 'small err'; m.textContent = e.message; });
+      });
     }).catch(adminFail);
   }
   // --- Nov 21: Admins and permissions (super admins only). Lists › Portal admins + Admin level; Super admins are read only here.
