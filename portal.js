@@ -591,8 +591,42 @@
     return '<footer>' + (help ? '<a href="' + esc(help) + '" target="_blank" rel="noopener">Help and how-to guides</a><br>' : '') +
       'Questions about shifts, stands or paperwork: <a href="mailto:' + LIAISON + '">email the IU liaison</a>.<br>' +
       'Website or technical problems: <a href="mailto:' + TECH + '">Nick Ely, tech support</a>.<br>' +
+      '<a href="#" class="sharehub" style="display:inline-flex;align-items:center;gap:6px;font-weight:700;margin:4px 0">' +
+      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg>' +
+      'Share the Hub</a><br>' +
       '© 2026 NE Prints &amp; Design, LLC' + (ENV !== 'LIVE' ? ' · ' + esc(ENV) : '') + '</footer>';
   }
+  // Nov 21 (Nick): "Share the Hub" in every footer: a QR code someone can scan off your screen, plus share / copy the link.
+  // Always the public Hub address (never a personal link or the sandbox), so sharing never hands out anyone's access.
+  var SHARE_URL = 'https://edgewood-volunteers.github.io/';
+  function shareHub() {
+    var old = document.getElementById('shareov'); if (old) old.remove();
+    var ov = document.createElement('div'); ov.id = 'shareov'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Share the Hub');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,10,18,.92);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = '<div style="background:#fff;color:#111827;border-radius:24px;padding:22px;max-width:380px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5);font-family:Inter,sans-serif">' +
+      '<div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#b45309">Edgewood Volunteer Hub</div>' +
+      '<div style="font-size:22px;font-weight:800;margin:6px 0 2px">Scan to volunteer</div>' +
+      '<div style="font-size:14px;color:#4b5563;margin-bottom:12px">Point a phone camera at the code.</div>' +
+      '<img src="' + (window.HUB_ASSETS || '') + 'qr-hub.svg" alt="QR code for edgewood-volunteers.github.io" style="width:100%;max-width:300px;aspect-ratio:1;image-rendering:pixelated;display:block;margin:0 auto">' +
+      '<div style="font-size:14px;color:#4b5563;margin:10px 0 14px">edgewood-volunteers.github.io</div>' +
+      '<div style="display:flex;gap:8px">' + (navigator.share ? '<button id="shgo" style="flex:1;min-height:46px;border:0;border-radius:12px;background:#f2c230;color:#1a1300;font:700 15px Inter,sans-serif;cursor:pointer">Share link</button>' : '') +
+      '<button id="shcopy" style="flex:1;min-height:46px;border:1px solid #d1d5db;border-radius:12px;background:#fff;color:#111827;font:700 15px Inter,sans-serif;cursor:pointer">Copy link</button></div>' +
+      '<button id="shx" style="margin-top:10px;background:none;border:0;color:#6b7280;font:600 14px Inter,sans-serif;cursor:pointer;padding:8px">Close</button></div>';
+    document.body.appendChild(ov);
+    var lock = null; try { navigator.wakeLock && navigator.wakeLock.request('screen').then(function (l) { lock = l; }).catch(function () {}); } catch (e) {}
+    var close = function () { try { lock && lock.release(); } catch (e) {} ov.remove(); document.removeEventListener('keydown', esc1); };
+    var esc1 = function (e) { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', esc1);
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+    document.getElementById('shx').onclick = close;
+    var sg = document.getElementById('shgo');
+    if (sg) sg.onclick = function () { navigator.share({ title: 'Edgewood Volunteer Hub', text: 'Volunteer with Edgewood at IU games, graduation and the Auditorium. Sign up here:', url: SHARE_URL }).catch(function () {}); };
+    document.getElementById('shcopy').onclick = function () {
+      var b = this; var done = function () { b.textContent = 'Copied!'; setTimeout(function () { b.textContent = 'Copy link'; }, 1800); };
+      try { navigator.clipboard.writeText(SHARE_URL).then(done, function () { prompt('Copy this link:', SHARE_URL); }); } catch (e) { prompt('Copy this link:', SHARE_URL); }
+    };
+  }
+  document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('.sharehub'); if (a) { e.preventDefault(); shareHub(); } });
   function wireFooter() {
   }
 
