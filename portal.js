@@ -337,19 +337,7 @@
   if (view === 'leave') return leavePage(qs.get('email') || '');
   if (view === 'admin') {   // "Back to admin portal" from an admin-opened page (p = the volunteer they were working on)
     // Nov 12: the address bar keeps where the admin is (search, a volunteer, a roster), so a refresh reopens the same screen.
-    var p0 = qs.get('p'), r0 = qs.get('hub'), s0 = qs.get('su'), d0 = qs.get('d') || '';
-    if (adminSess()) {
-      state.admin = true;
-      if (p0) return adminView(p0);
-      var t0 = qs.get('tool'), T0 = { home: adminToolsHome, review: toolReview, family: toolFamily, cancel: toolCancel, sheets: toolSheets, logs: toolLogs, noshows: toolNoShows, walkin: toolWalkIn, health: toolHealth, perms: toolPerms };
-      if (t0 && T0[t0]) return T0[t0]();
-      if (qs.get('ms')) { state.canManage = adminLevel() >= 3; return adminManage(qs.get('ev') || '', d0); }
-      if (r0 && d0) return adminRoster(r0, d0);
-      if (s0 && d0) return adminSuRoster(s0, d0);
-      if (qs.get('day')) return adminDay(qs.get('day') === 'today' ? todayIso() : qs.get('day'));
-      if (qs.get('find')) return adminFind(qs.get('q') || '');   // Nov 21: &q= searches right away (warp links from Nick's launcher)
-      return adminSearch();
-    }
+    if (adminSess()) return adminRoute();
     return adminStart();
   }
   if (view === 'directory') { history.replaceState(null, '', location.pathname + '?view=directory'); return dirStart(); }   // section 26 on the Hub
@@ -978,6 +966,22 @@
     if (/expired|sign in with google/i.test(e.message)) { try { localStorage.removeItem(ADMIN); } catch (x) {} return adminStart('Your admin sign-in expired. Sign in again.'); }
     h(adminBar() + '<div class="card"><p class="err">' + esc(e.message) + '</p></div>' + footer()); wireAdminBar();
   }
+  // Nov 22 (Nick): the admin screen named in the address (warp links, refresh). Also used right after admin sign-in,
+  // so a warp link opened with an expired sign-in lands on its screen, not admin home.
+  function adminRoute() {
+    var qs = new URLSearchParams(location.search);
+    var p0 = qs.get('p'), r0 = qs.get('hub'), s0 = qs.get('su'), d0 = qs.get('d') || '';
+      state.admin = true;
+      if (p0) return adminView(p0);
+      var t0 = qs.get('tool'), T0 = { home: adminToolsHome, review: toolReview, family: toolFamily, cancel: toolCancel, sheets: toolSheets, logs: toolLogs, noshows: toolNoShows, walkin: toolWalkIn, health: toolHealth, perms: toolPerms };
+      if (t0 && T0[t0]) return T0[t0]();
+      if (qs.get('ms')) { state.canManage = adminLevel() >= 3; return adminManage(qs.get('ev') || '', d0); }
+      if (r0 && d0) return adminRoster(r0, d0);
+      if (s0 && d0) return adminSuRoster(s0, d0);
+      if (qs.get('day')) return adminDay(qs.get('day') === 'today' ? todayIso() : qs.get('day'));
+      if (qs.get('find')) return adminFind(qs.get('q') || '');   // Nov 21: &q= searches right away (warp links from Nick's launcher)
+      return adminSearch();
+  }
   function adminStart(note) {
     state.admin = true; state.page = 'Portal admin';
     if (adminSess()) return adminSearch();
@@ -990,7 +994,7 @@
     if (!cid) return;
     gsi('gbtn', function (cred) {
       spinner('Signing you in with Google…');
-      call('adminGoogle', { credential: cred }).then(function (a) { store(ADMIN, a); adminSearch(); })
+      call('adminGoogle', { credential: cred }).then(function (a) { store(ADMIN, a); adminRoute(); })
         .catch(function (e) { adminStart(e.message); });
     });
   }
