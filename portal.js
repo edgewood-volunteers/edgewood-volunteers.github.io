@@ -380,16 +380,29 @@
   }
 
   function signIn(note) {
+    // Nov 21 (Nick): "first time here?" video links for each section of the sign-in page (open in a new tab)
+    var watch = function (slug, label) { return '<a class="watch" href="/help/' + slug + '/" target="_blank" rel="noopener"><span class="play">▶</span> ' + esc(label) + '</a>'; };
+    if (!document.getElementById('watchcss')) { var wc = document.createElement('style'); wc.id = 'watchcss';
+      wc.textContent = '#hub .watch{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#B45309;text-decoration:none;margin:6px 0 2px}#hub .watch:hover{text-decoration:underline}' +
+        '#hub .watch .play{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#F2C230;color:#111;font-size:10px;padding-left:2px;box-sizing:border-box}' +
+        '#hub .card.firsttime{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid #FCD34D;background:#FFFBEB}' +
+        '#hub .firsttime b{font-size:16px}#hub .firsttime .small{margin:2px 0 0}' +
+        'html.dark #hub .watch{color:#F2C230}html.dark #hub .card.firsttime{border-color:rgba(242,194,48,.45);background:rgba(242,194,48,.08)}';
+      document.head.appendChild(wc); }
     h(header('', false) +
+      (state.adding ? '' : '<div class="card firsttime"><div><b>First time here?</b><p class="small muted">Watch the quick start: signing up, paperwork and your first shift.</p></div>' +
+        '<a class="btn primary" href="/help/getting-started/" target="_blank" rel="noopener" style="min-width:150px">▶ Getting started</a></div>') +
       '<div class="card"><h2>Your volunteer page</h2>' +
       (note ? '<p class="err">' + esc(note) + '</p>' : '') +
-      (window.HUB_GOOGLE_CLIENT_ID ? '<div id="gbtn" class="gbtn"></div><p class="small muted">New volunteer? Sign in with Google to get started.</p><div class="or"><span>or</span></div>' : '') +
+      (window.HUB_GOOGLE_CLIENT_ID ? '<div id="gbtn" class="gbtn"></div><p class="small muted">New volunteer? Sign in with Google to get started.</p><p class="center" style="margin:0">' + watch('google-sign-in', 'Watch: signing in with Google the first time') + '</p><div class="or"><span>or</span></div>' : '') +
       '<p class="muted">Enter the volunteer code from your Hub email (it looks like K7Q4-M9XD) for everything, or your email address to see your shifts, hours and paperwork. This device will remember it.</p>' +
       '<input id="code" autocomplete="off" placeholder="ABCD-1234 or you@example.com">' +
       '<button class="btn primary" id="go">Open my page</button><p class="err" id="msg"></p>' +
       '<p class="small center" style="margin-top:10px"><a href="#" id="getcode">Don\'t have your code? Email it to me</a></p>' +
+      '<p class="center" style="margin:4px 0 0">' + watch('code-sign-in', 'Watch: signing in with your code') + '</p>' +
       (state.adding && codes().length ? '<p class="small center" style="margin-top:6px"><a href="#" id="addx">Cancel: back to my page</a></p>' : '') + '</div>' +
-      '<div class="card"><a class="btn" href="?view=coverage">See open spots</a></div>' + footer());
+      '<div class="card"><a class="btn" href="?view=coverage">See open spots</a><p class="center" style="margin:6px 0 0">' + watch('open-spots', 'Watch: finding and grabbing an open spot') + '</p>' +
+      '<p class="center" style="margin:0">' + watch('home-screen', 'Watch: put the Hub on your phone\'s home screen') + '</p></div>' + footer());
     wireHeader();   // Nov 16 (Nick): the name pills here were dead after "+ Add", so there was no way back
     on('#addx', 'click', function (e) { e.preventDefault(); home(); });
     var go = function () {
