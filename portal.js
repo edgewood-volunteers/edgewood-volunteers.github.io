@@ -326,6 +326,7 @@
   function meName(d) { return (d && (d.name || d.first)) || ''; }
   function dayKey(t) { var d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
   function sameDay(t) { return dayKey(t) === dayKey(Date.now()); }
+  function todayIso() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
   // ---------- routing
   var qs = new URLSearchParams(location.search);
@@ -342,7 +343,7 @@
       if (qs.get('ms')) { state.canManage = adminLevel() >= 3; return adminManage(qs.get('ev') || '', d0); }
       if (r0 && d0) return adminRoster(r0, d0);
       if (s0 && d0) return adminSuRoster(s0, d0);
-      if (qs.get('day')) return adminDay(qs.get('day'));
+      if (qs.get('day')) return adminDay(qs.get('day') === 'today' ? todayIso() : qs.get('day'));
       if (qs.get('find')) return adminFind();
       return adminSearch();
     }
@@ -1023,6 +1024,7 @@
       '<div class="card wide"><h2>SignUp.com games</h2><p class="small muted">Who is working each stand, with group-text buttons. Changes still happen on SignUp.com.</p><div id="sugames"><div class="spin"></div></div></div></div>' + footer());
     wireAdminBar();
     on('#gofind', 'click', function () { adminFind(); });
+    var gf = document.getElementById('gofind'); if (gf && !document.getElementById('goday')) { gf.insertAdjacentHTML('afterend', '<button class="btn primary" id="goday">Game day: everything happening today</button>'); on('#goday', 'click', function () { adminDay(todayIso()); }); }
     on('#homerefresh', 'click', function (e) { e.preventDefault(); homeC(true); adminSearch(); });
     adminHubList();
     adminSuList();
@@ -1836,12 +1838,20 @@
     state.page = 'Portal admin day'; spinner('Loading every game that day…');
     var su = homeCall('adminSuGames').then(function (r) { return r.games.filter(function (g) { return g.date === date; }); });
     var hub = homeCall('adminHubGames').then(function (r) { return r.games.filter(function (g) { return g.date === date; }); }, function () { return []; });
-    Promise.all([su, hub]).then(function (lists) {
+    var sheets = homeCall('adminStands').then(function (r) { return r.stands || []; }, function () { return []; });   // time sheet status + link per stand
+    var isToday = date === todayIso(), SH = [];
+    Promise.all([su, hub, sheets]).then(function (lists) {
+      SH = lists[2];
+      if (!lists[0].length && !lists[1].length && isToday) {
+        h(adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>Game day · today</b><span></span></div><p class="muted" style="margin-top:10px">No games today. Enjoy the night off.</p></div>' + footer());
+        wireAdminBar(); on('#rback', 'click', adminSearch); return null;
+      }
       var jobs = lists[0].map(function (g) { return memoCall('adminSuRoster', adminReq({ src: g.src, date: date }), g.src + '|' + date).then(function (r) { r.kind = 'su'; return r; }); })
         .concat(lists[1].map(function (g) { return memoCall('adminHubRoster', adminReq({ src: g.src, date: date }), g.src + '|' + date).then(function (r) { r.kind = 'hub'; return r; }); }));
       if (!jobs.length) throw new Error('No games found on that day.');
       return Promise.all(jobs);
     }).then(function (rs) {
+      if (!rs) return;
       var shortOf = function (n) { var parts = String(n || '').split(/\s+[-–]\s+/); return parts.length > 1 ? parts.slice(1).join(' - ') : String(n || ''); };
       var many = rs.length > 1, day = rs[0].day, all = { name: 'the ' + rs.length + ' games', day: day, stands: [] };
       rs.forEach(function (r, gi) {
@@ -1851,18 +1861,28 @@
         });
       });
       var rc = reachOf(all);
-      var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>All games · ' + esc(day) + '</b><span class="small muted">' + rs.length + ' game' + (rs.length === 1 ? '' : 's') + '</span></div>' + '<p class="small muted" style="margin:6px 0 0">Kept 2 minutes. <a href="#" class="memore">Refresh now</a></p>' +
+      var o = adminBar() + '<div class="card"><div class="row"><button class="btn sm" id="rback">← Back</button><b>' + (isToday ? 'Game day · ' : 'All games · ') + esc(day) + '</b><span class="small muted">' + rs.length + ' game' + (rs.length === 1 ? '' : 's') + '</span></div>' + '<p class="small muted" style="margin:6px 0 0">Kept 2 minutes. <a href="#" class="memore">Refresh now</a></p>' +
         '<p class="small muted">' + rs.map(function (r) { return esc(r.name) + (r.kind === 'hub' ? ' (Hub)' : ''); }).join(' · ') + '</p></div>';
       o += reachCard(rc, all, 'these games');
       rs.forEach(function (r, gi) {
         o += '<div class="card"><h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px">' + esc(r.name) +
           '<button class="btn sm dgo" data-k="' + r.kind + '" data-src="' + esc(r.src) + '">Full roster</button></h2>';
         all.stands.filter(function (st) { return st.game === gi; }).forEach(function (st) {
-          var leads = [], n = (rc.byStand[st.code] || []).length;
-          st.positions.forEach(function (p) { if (p.lead) p.people.forEach(function (x) { leads.push(x.name); }); });
-          o += '<div class="hrow"><span><b>' + esc(st.code.split(' · ')[0]) + '</b>' + (st.canceled ? ' <span class="err">canceled</span>' : '') +
-            '<div class="small muted">Lead: ' + (leads.length ? leads.map(esc).join(', ') : '<span class="err">none signed up</span>') + '</div></span>' +
-            (!st.canceled && n ? '<a class="btn sm rtxt" href="#" data-stand="' + esc(st.code) + '">Text stand (' + n + ')</a>' : '') + '</div>';
+          var leads = [], n = (rc.byStand[st.code] || []).length, code = st.code.split(' · ')[0];
+          st.positions.forEach(function (p) { if (p.lead) p.people.forEach(function (x) { leads.push(x); }); });
+          // Nov 21: Game day. The stand's time sheet (status + link) and call/text buttons for the lead.
+          var sh = SH.filter(function (x) { return x.iso === date && x.code === code && String(x.src || '').toLowerCase().replace(/^hub:\s*/, '') === String(r.src || '').toLowerCase().replace(/^hub:\s*/, ''); })[0];
+          var me = (adminSess() || {}).name || '';
+          var lb = leads.filter(function (x) { return x.phone; }).slice(0, 1).map(function (x) {
+            return '<a class="btn sm" href="' + telLink(x.phone) + '">Call ' + esc(String(x.name).split(' ')[0]) + '</a>' +
+              '<a class="btn sm" href="' + telLink(x.phone, 'sms', hiText(x.name, me, ' with Edgewood Concessions Volunteers')) + '">Text</a>';
+          }).join('');
+          o += '<div class="hrow" style="align-items:flex-start"><span><b>' + esc(code) + '</b>' + (st.canceled ? ' <span class="err">canceled</span>' : '') +
+            '<div class="small muted">Lead: ' + (leads.length ? leads.map(function (x) { return esc(x.name); }).join(', ') : '<span class="err">none signed up</span>') +
+            (sh ? ' · time sheet: <b>' + esc(sh.status) + '</b>' + (sh.submittedBy ? ' by ' + esc(sh.submittedBy) : '') : '') + '</div></span>' +
+            '<span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">' + (st.canceled ? '' : lb) +
+            (!st.canceled && n ? '<a class="btn sm rtxt" href="#" data-stand="' + esc(st.code) + '">Text stand (' + n + ')</a>' : '') +
+            (sh && sh.act ? '<a class="btn sm" href="' + esc(toSite(sh.act)) + '">Time sheet</a>' : '') + '</span></div>';
         });
         o += '</div>';
       });
