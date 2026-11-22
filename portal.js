@@ -510,11 +510,12 @@
   }
 
   /** Google sign-in button (the same Google client as admin sign-in). */
-  function gsi(elId, onCred) {
+  function gsi(elId, onCred, auto) {   // auto (Nov 22): try Google's automatic sign-in too (no tap when this device has signed in before)
     var cid = window.HUB_GOOGLE_CLIENT_ID, el = document.getElementById(elId); if (!cid || !el) return;
     var draw = function () {
-      google.accounts.id.initialize({ client_id: cid, auto_select: false, callback: function (r) { onCred(r.credential); } });
+      google.accounts.id.initialize({ client_id: cid, auto_select: !!auto, use_fedcm_for_prompt: true, callback: function (r) { onCred(r.credential); } });
       google.accounts.id.renderButton(document.getElementById(elId), { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill' });
+      if (auto) { try { google.accounts.id.prompt(); } catch (e) {} }   // the button stays as the fallback
     };
     if (window.google && google.accounts && google.accounts.id) return draw();
     var sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true; sc.onload = draw;
@@ -992,11 +993,14 @@
     wireHeader();
     on('#cancelAdm', 'click', function () { adminLeaveUrl(); state.admin = false; state.data ? renderHome(state.data, false) : home(); });
     if (!cid) return;
+    // Nov 22 (Nick): automatic sign-in on a device that has signed in as admin before (and didn't press Sign out). Google still
+    // verifies the account every time and the Hub still checks the Portal admins list, so nothing is weaker than tapping the button.
+    var autoOk = false; try { autoOk = localStorage.getItem(ADMIN + 'Seen') === '1' && localStorage.getItem(ADMIN + 'Out') !== '1'; } catch (e) {}
     gsi('gbtn', function (cred) {
       spinner('Signing you in with Google…');
-      call('adminGoogle', { credential: cred }).then(function (a) { store(ADMIN, a); adminRoute(); })
+      call('adminGoogle', { credential: cred }).then(function (a) { store(ADMIN, a); try { localStorage.setItem(ADMIN + 'Seen', '1'); localStorage.removeItem(ADMIN + 'Out'); } catch (e) {} adminRoute(); })
         .catch(function (e) { adminStart(e.message); });
-    });
+    }, autoOk && !note || autoOk && /expired/i.test(note || ''));
   }
   function adminBar() {
     var a = adminSess() || {};
@@ -1010,7 +1014,8 @@
     on('#admd', 'click', function () { try { history.replaceState(null, '', location.pathname + '?view=directory'); } catch (e) {} dirView(); });
     on('#admx', 'click', function () { homeC(true); adminLeaveUrl(); state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home(); });
     on('#admo', 'click', function () {
-      var a = adminSess(); try { localStorage.removeItem(ADMIN); } catch (x) {}
+      var a = adminSess(); try { localStorage.removeItem(ADMIN); localStorage.setItem(ADMIN + 'Out', '1'); } catch (x) {}   // Nov 22: a real Sign out turns automatic sign-in off until the next manual sign-in
+      try { window.google && google.accounts && google.accounts.id && google.accounts.id.disableAutoSelect(); } catch (x) {}
       if (a) call('adminSignOut', { adminSession: a.session }).catch(function () {});
       homeC(true); adminLeaveUrl(); state.admin = false; state.page = 'Portal'; state.data ? renderHome(state.data, false) : home();
     });
