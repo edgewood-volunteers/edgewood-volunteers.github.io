@@ -1,6 +1,8 @@
 # Edgewood Volunteer Hub – volunteer pages
 
 Public pages for the Edgewood Volunteer Hub (IU concessions volunteers).
+**These pages are published from the private repo `nick-ely/hub-tools` (folder `site/`, script `tools/publish-site.sh`); change them there, not here.** The help/ videos are the exception: they're built by the video toolkit and live only here.
+
 The data and logic live in the Hub's Google Apps Script back end; nothing in this repo holds volunteer data, codes or settings.
 
 ## Ownership
@@ -17,5 +19,4 @@ The Edgewood Volunteer Hub (the code in this repository, the Google Apps Script 
 
 `/lab-bec0d580658f/` is the test site. It loads the same `portal.js` but has its own `config.js` pointing at the
 SANDBOX copy of the Hub, shows an orange SANDBOX bar, and asks search engines not to index it. Saved volunteer codes and
-admin sign-ins are kept separately from the live site. If `index.html` changes, copy it into that folder too
-(the only difference is the `robots` meta line).
+admin sign-ins are kept separately from the live site. The publish script builds that folder's index.html from the live one (plus the `robots` line), so they can't drift.
