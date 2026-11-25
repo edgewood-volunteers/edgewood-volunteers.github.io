@@ -891,6 +891,12 @@
     var o = (asAdmin ? adminBar(state.adminData) : header(d.me.first, d.isAdmin)) + '<div class="card"><div class="row"><button class="btn sm" id="back">← Back</button><b>Hours history</b><span></span></div>';
     o += '<p class="small muted">' + esc(sh.hours || 0) + ' hours over ' + esc(sh.shifts || 0) + ' games' + (sh.unpaid ? ' · ' + esc(sh.unpaid) + ' not paid out yet' : '') + '</p>';
     if (!rows.length) o += '<p class="muted">No hours on file yet.</p>';
+    var bySport = {}, sports = [];   // Nov 25 (Nick): total hours per sport
+    rows.forEach(function (x) { var k = x.sport || 'Other', n = Number(x.hours) || 0; if (!(k in bySport)) { bySport[k] = 0; sports.push(k); } bySport[k] += n; });
+    if (sports.length > 1) {
+      sports.sort(function (a, b) { return bySport[b] - bySport[a]; });
+      o += '<div class="sporttot">' + sports.map(function (k) { return '<span><b>' + esc(Math.round(bySport[k] * 100) / 100) + 'h</b> ' + esc(k) + '</span>'; }).join('') + '</div>';
+    }
     rows.forEach(function (x) {
       o += '<div class="hrow"><div><b>' + esc(x.date) + '</b> ' + esc(x.event || x.sport || '') + '<div class="small muted">' + esc(x.stand) + (x.start ? ' · ' + esc(x.start) + '–' + esc(x.end) : '') + (x.student ? ' · ' + esc(x.student) : '') + '</div></div>' +
         '<div class="right"><b>' + esc(x.hours) + 'h</b><div class="small muted">' + esc(x.status || '') + '</div></div></div>';

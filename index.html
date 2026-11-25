@@ -57,6 +57,7 @@
   .chip { display: block; width: 100%; margin-top: 2px; padding: 2px 3px; border: 0; border-radius: 4px; background: #dbeafe; color: #1e3a8a; font-size: 10px; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .chip.past { background: #e5e7eb; color: #4b5563; }
   .hrow { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #f1f5f9; } .right { text-align: right; }
+  .sporttot { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; } .sporttot span { background: #eef2ff; color: #1F3864; border-radius: 12px; padding: 3px 10px; font-size: 13px; }
   .hit { display: block; width: 100%; text-align: left; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; margin-top: 6px; cursor: pointer; }
   #hub.portal a.btn { background: #fff; color: #0b2545; border: 1px solid #cbd5e1; padding: 10px 12px; margin-top: 8px; }
   #hub.portal a.btn.primary { background: #0b2545; color: #fff; border-color: #0b2545; }
@@ -99,13 +100,13 @@
   if (!q || q === '?' || v0 === 'home' || v0 === 'leave' || v0 === 'admin' || v0 === 'directory') {   // the portal and the leave page are built here, not by the Hub
     var hub = document.getElementById('hub'); hub.className = 'wrap portal'; hub.innerHTML = '';
     if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') { hub.style.paddingTop = '22px'; var bar = document.createElement('div'); bar.className = 'env'; bar.textContent = window.HUB_ENV + ' – test copy, not live data'; document.body.appendChild(bar); }
-    var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=7186474-1795366851'; document.body.appendChild(sc);
+    var sc = document.createElement('script'); sc.src = (window.HUB_ASSETS || '') + 'portal.js?v=fbac8fe-1795646720'; document.body.appendChild(sc);
     return;
   }
   if (v0 === 'release') {   // sign the minor release online (Levy Exhibit G): student + parent, built here like the Levy packet
     var hub3 = document.getElementById('hub'); hub3.className = 'wrap portal'; hub3.innerHTML = '<div class="card center"><div class="spin"></div><p class="muted">Loading…</p></div>';
     if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') { hub3.style.paddingTop = '22px'; var bar3 = document.createElement('div'); bar3.className = 'env'; bar3.textContent = window.HUB_ENV + ' – test copy, not live data'; document.body.appendChild(bar3); }
-    var A3 = window.HUB_ASSETS || '', srcs3 = ['https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', A3 + 'release-fill.js?v=7186474-1795366851', A3 + 'release.js?v=7186474-1795366851'];
+    var A3 = window.HUB_ASSETS || '', srcs3 = ['https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', A3 + 'release-fill.js?v=fbac8fe-1795646720', A3 + 'release.js?v=fbac8fe-1795646720'];
     (function next() { var s = srcs3.shift(); if (!s) return; var e = document.createElement('script'); e.src = s; e.onload = next;
       e.onerror = function () { hub3.innerHTML = '<div class="card"><p class="err">This page could not load right now. Please try again in a minute.</p></div>'; }; document.body.appendChild(e); })();
     return;
@@ -113,7 +114,7 @@
   if (v0 === 'levy') {   // sign the Levy packet online: built here (pdf-lib stamps Levy's PDF in the browser)
     var hub2 = document.getElementById('hub'); hub2.className = 'wrap portal'; hub2.innerHTML = '<div class="card center"><div class="spin"></div><p class="muted">Loading…</p></div>';
     if (window.HUB_ENV && window.HUB_ENV !== 'LIVE') { hub2.style.paddingTop = '22px'; var bar2 = document.createElement('div'); bar2.className = 'env'; bar2.textContent = window.HUB_ENV + ' – test copy, not live data'; document.body.appendChild(bar2); }
-    var A = window.HUB_ASSETS || '', srcs = ['https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', A + 'levy-fill.js?v=7186474-1795366851', A + 'levy.js?v=7186474-1795366851'];
+    var A = window.HUB_ASSETS || '', srcs = ['https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', A + 'levy-fill.js?v=fbac8fe-1795646720', A + 'levy.js?v=fbac8fe-1795646720'];
     (function next() { var s = srcs.shift(); if (!s) return; var e = document.createElement('script'); e.src = s; e.onload = next;
       e.onerror = function () { hub2.innerHTML = '<div class="card"><p class="err">This page could not load right now. Please try again in a minute.</p></div>'; }; document.body.appendChild(e); })();
     return;
