@@ -510,10 +510,13 @@
   }
 
   /** Google sign-in button (the same Google client as admin sign-in). */
-  function gsi(elId, onCred, auto) {   // auto (Nov 22): try Google's automatic sign-in too (no tap when this device has signed in before)
+  function gsi(elId, onCred, auto, fedcmBtn) {   // auto (Nov 22): try Google's automatic sign-in too (no tap when this device has signed in before)
+    // fedcmBtn (Nov 27): the button goes through the browser's FedCM sign-in too. Chrome only signs someone in automatically after
+    // a FedCM sign-in on that browser; the old pop-up button never counted, so automatic admin sign-in never kicked in.
     var cid = window.HUB_GOOGLE_CLIENT_ID, el = document.getElementById(elId); if (!cid || !el) return;
     var draw = function () {
-      google.accounts.id.initialize({ client_id: cid, auto_select: !!auto, use_fedcm_for_prompt: true, callback: function (r) { onCred(r.credential); } });
+      google.accounts.id.initialize({ client_id: cid, auto_select: !!auto, use_fedcm_for_prompt: true, use_fedcm_for_button: !!fedcmBtn, button_auto_select: !!fedcmBtn,
+        callback: function (r) { onCred(r.credential); } });
       google.accounts.id.renderButton(document.getElementById(elId), { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill' });
       if (auto) { try { google.accounts.id.prompt(); } catch (e) {} }   // the button stays as the fallback
     };
@@ -1006,7 +1009,7 @@
       spinner('Signing you in with Google…');
       call('adminGoogle', { credential: cred }).then(function (a) { store(ADMIN, a); try { localStorage.setItem(ADMIN + 'Seen', '1'); localStorage.removeItem(ADMIN + 'Out'); } catch (e) {} adminRoute(); })
         .catch(function (e) { adminStart(e.message); });
-    }, autoOk && !note || autoOk && /expired/i.test(note || ''));
+    }, autoOk && !note || autoOk && /expired/i.test(note || ''), true);
   }
   function adminBar() {
     var a = adminSess() || {};
